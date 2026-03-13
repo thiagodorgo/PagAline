@@ -1,18 +1,165 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { useStore, Bill } from "@/lib/store";
-import { format, isSameMonth, parseISO } from "date-fns";
+import { format, isSameMonth, isPast, isToday, isTomorrow } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ChevronLeft, ChevronRight, Filter, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Filter, Search, CheckCircle2, Calendar as CalendarIcon, Edit, Trash } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { motion, useAnimation, PanInfo } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
+import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from "@/components/ui/drawer";
+
+// Reusing the same formatter
+const formatCurrency = (value: number) => {
+  return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+};
+
+const getDueDateLabel = (date: Date, status: string) => {
+  if (status === 'paid') return 'Pago';
+  if (isPast(date) && !isToday(date)) return 'Vencido';
+  if (isToday(date)) return 'Vence hoje';
+  if (isTomorrow(date)) return 'Vence amanhã';
+  return `Vence em ${format(date, "dd MMM", { locale: ptBR })}`;
+};
+
+function BillItemWithSwipe({ 
+  bill, 
+  onPay, 
+  onSchedule, 
+  onLongPress 
+}: { 
+  bill: Bill;
+  onPay: (id: string) => void;
+  onSchedule: (bill: Bill) => void;
+  onLongPress: (bill: Bill) => void;
+}) {
+  const controls = useAnimation();
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
+
+  const handleTouchStart = () => {
+    timerRef.current = setTimeout(() => {
+      onLongPress(bill);
+    }, 2000);
+  };
+
+  const handleTouchEnd = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
+  const handleDragStart = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+  };
+
+  const handleDrag = (e: any, info: PanInfo) => {
+    setDragOffset(info.offset.x);
+  };
+
+  const handleDragEnd = async (e: any, info: PanInfo) => {
+    const threshold = 100;
+    const velocity = info.velocity.x;
+    setDragOffset(0);
+    
+    if (info.offset.x > threshold || (info.offset.x > 30 && velocity > 500)) {
+      if (bill.status !== 'paid') {
+        controls.start({ x: 500, transition: { duration: 0.2 } }).then(() => {
+          onPay(bill.id);
+          controls.set({ x: 0 });
+        });
+      } else {
+        controls.start({ x: 0, transition: { type: "spring", stiffness: 300, damping: 25 } });
+      }
+    } else if (info.offset.x < -threshold || (info.offset.x < -30 && velocity < -500)) {
+      if (bill.status !== 'paid') {
+        onSchedule(bill);
+        controls.start({ x: 0, transition: { type: "spring", stiffness: 300, damping: 25 } });
+      } else {
+        controls.start({ x: 0, transition: { type: "spring", stiffness: 300, damping: 25 } });
+      }
+    } else {
+      controls.start({ x: 0, transition: { type: "spring", stiffness: 300, damping: 25 } });
+    }
+  };
+
+  const getStatusBadge = (bill: Bill) => {
+    if (bill.status === 'paid') {
+      return <Badge variant="outline" className="text-success border-success/30 bg-success/10">Pago</Badge>;
+    }
+    if (bill.status === 'overdue') {
+      return <Badge variant="outline" className="text-destructive border-destructive/30 bg-destructive/10">Vencido</Badge>;
+    }
+    return <Badge variant="outline" className="text-warning border-warning/30 bg-warning/10">Pendente</Badge>;
+  };
+
+  return (
+    <div className="relative rounded-xl overflow-hidden bg-muted mb-3">
+      {/* Background actions (Swipe) - Only show if not paid */}
+      {bill.status !== 'paid' && (
+        <div className="absolute inset-0 flex justify-between items-center px-6">
+          <div className={cn("flex items-center gap-2 font-medium transition-opacity", dragOffset > 40 ? "text-success opacity-100" : "text-muted-foreground opacity-50")}>
+            <CheckCircle2 size={22} />
+            <span className="text-sm">Pagar</span>
+          </div>
+          <div className={cn("flex items-center gap-2 font-medium transition-opacity", dragOffset < -40 ? "text-primary opacity-100" : "text-muted-foreground opacity-50")}>
+            <span className="text-sm">Agendar</span>
+            <CalendarIcon size={22} />
+          </div>
+        </div>
+      )}
+      
+      <motion.div
+        drag={bill.status !== 'paid' ? "x" : false}
+        dragConstraints={{ left: 0, right: 0 }}
+        dragElastic={0.4}
+        onDragStart={handleDragStart}
+        onDrag={handleDrag}
+        onDragEnd={handleDragEnd}
+        animate={controls}
+        onTouchStart={handleTouchStart}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchEnd}
+        onMouseDown={handleTouchStart}
+        onMouseUp={handleTouchEnd}
+        onMouseLeave={handleTouchEnd}
+        className="relative z-10 touch-pan-y"
+        whileTap={{ scale: 0.98 }}
+      >
+        <Card className="overflow-hidden border-0 shadow-sm">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex-1 min-w-0 pr-4">
+              <h3 className="font-semibold text-base truncate mb-1">{bill.description}</h3>
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <span>{bill.category}</span>
+                <span>•</span>
+                <span>Venc: {format(bill.dueDate, "dd/MM", { locale: ptBR })}</span>
+              </div>
+            </div>
+            <div className="flex flex-col items-end gap-2 shrink-0">
+              <span className="font-bold text-base">{formatCurrency(bill.amount)}</span>
+              {getStatusBadge(bill)}
+            </div>
+          </CardContent>
+        </Card>
+      </motion.div>
+    </div>
+  );
+}
 
 export default function Bills() {
   const bills = useStore((state) => state.bills);
+  const markAsPaid = useStore((state) => state.markAsPaid);
+  const deleteBill = useStore((state) => state.deleteBill);
+  const { toast } = useToast();
+  
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [activeTab, setActiveTab] = useState("all");
+  
+  // Drawer states
+  const [activeBill, setActiveBill] = useState<Bill | null>(null);
+  const [drawerType, setDrawerType] = useState<'schedule' | 'options' | null>(null);
 
   const prevMonth = () => {
     setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1));
@@ -35,18 +182,38 @@ export default function Bills() {
     return true;
   }).sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
 
-  const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  const handlePaySingle = (id: string) => {
+    markAsPaid(id);
+    toast({
+      title: "Conta paga",
+      description: "A conta foi marcada como paga e atualizada no histórico.",
+    });
   };
 
-  const getStatusBadge = (bill: Bill) => {
-    if (bill.status === 'paid') {
-      return <Badge variant="outline" className="text-success border-success/30 bg-success/10">Pago</Badge>;
+  const handleSchedule = (bill: Bill) => {
+    setActiveBill(bill);
+    setDrawerType('schedule');
+  };
+
+  const handleLongPress = (bill: Bill) => {
+    setActiveBill(bill);
+    setDrawerType('options');
+    // Trigger haptic feedback if available
+    if (window.navigator && window.navigator.vibrate) {
+      window.navigator.vibrate(50);
     }
-    if (bill.status === 'overdue') {
-      return <Badge variant="outline" className="text-destructive border-destructive/30 bg-destructive/10">Vencido</Badge>;
+  };
+
+  const handleDelete = () => {
+    if (activeBill) {
+      deleteBill(activeBill.id);
+      toast({
+        title: "Conta excluída",
+        description: "A conta foi removida com sucesso.",
+        variant: "destructive"
+      });
+      setDrawerType(null);
     }
-    return <Badge variant="outline" className="text-warning border-warning/30 bg-warning/10">Pendente</Badge>;
   };
 
   return (
@@ -97,28 +264,93 @@ export default function Bills() {
             <p className="text-sm mt-1">Nenhum registro para este período ou filtro.</p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="space-y-1">
+            {activeTab !== 'paid' && filteredBills.some(b => b.status !== 'paid') && (
+              <p className="text-xs text-muted-foreground mb-4 ml-2 italic">Dica: Deslize para a direita para pagar, esquerda para agendar. Segure para opções.</p>
+            )}
             {filteredBills.map((bill) => (
-              <Card key={bill.id} className="overflow-hidden">
-                <CardContent className="p-4 flex items-center justify-between">
-                  <div className="flex-1 min-w-0 pr-4">
-                    <h3 className="font-semibold text-base truncate mb-1">{bill.description}</h3>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>{bill.category}</span>
-                      <span>•</span>
-                      <span>Venc: {format(bill.dueDate, "dd/MM", { locale: ptBR })}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2 shrink-0">
-                    <span className="font-bold text-base">{formatCurrency(bill.amount)}</span>
-                    {getStatusBadge(bill)}
-                  </div>
-                </CardContent>
-              </Card>
+              <BillItemWithSwipe 
+                key={bill.id} 
+                bill={bill}
+                onPay={handlePaySingle}
+                onSchedule={handleSchedule}
+                onLongPress={handleLongPress}
+              />
             ))}
           </div>
         )}
       </div>
+
+      {/* Drawers */}
+      <Drawer open={drawerType === 'options'} onOpenChange={(open) => !open && setDrawerType(null)}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>{activeBill?.description}</DrawerTitle>
+            <DrawerDescription>Valor: {activeBill && formatCurrency(activeBill.amount)}</DrawerDescription>
+          </DrawerHeader>
+          <div className="p-4 flex flex-col gap-2">
+            {activeBill?.status !== 'paid' && (
+              <>
+                <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
+                  handlePaySingle(activeBill!.id);
+                  setDrawerType(null);
+                }}>
+                  <CheckCircle2 className="mr-3 text-success" size={20} />
+                  Marcar como Paga
+                </Button>
+                <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
+                  setDrawerType('schedule');
+                }}>
+                  <CalendarIcon className="mr-3 text-primary" size={20} />
+                  Agendar Pagamento
+                </Button>
+              </>
+            )}
+            <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
+              // Edit mode (mock)
+              setDrawerType(null);
+            }}>
+              <Edit className="mr-3 text-muted-foreground" size={20} />
+              Editar Conta
+            </Button>
+            <Button variant="outline" className="justify-start text-base py-6 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20" onClick={handleDelete}>
+              <Trash className="mr-3" size={20} />
+              Excluir Conta
+            </Button>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      <Drawer open={drawerType === 'schedule'} onOpenChange={(open) => !open && setDrawerType(null)}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Agendar Pagamento</DrawerTitle>
+            <DrawerDescription>{activeBill?.description}</DrawerDescription>
+          </DrawerHeader>
+          <div className="p-4 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Data do Agendamento</label>
+              <input 
+                type="date" 
+                className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50"
+                defaultValue={activeBill ? new Date(activeBill.dueDate).toISOString().split('T')[0] : ''}
+              />
+            </div>
+            <Button className="w-full py-6 text-lg rounded-2xl" onClick={() => {
+              toast({
+                title: "Pagamento agendado",
+                description: "O pagamento foi agendado para a data selecionada.",
+              });
+              setDrawerType(null);
+            }}>
+              Confirmar Agendamento
+            </Button>
+            <DrawerClose asChild>
+              <Button variant="ghost" className="w-full">Cancelar</Button>
+            </DrawerClose>
+          </div>
+        </DrawerContent>
+      </Drawer>
     </div>
   );
 }
