@@ -29,24 +29,24 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
             if (item.isMain) {
               return (
                 <Link key={item.path} href={item.path}>
-                  <a className="absolute left-1/2 -top-6 -translate-x-1/2 flex flex-col items-center justify-center">
+                  <div className="absolute left-1/2 -top-6 -translate-x-1/2 flex flex-col items-center justify-center cursor-pointer">
                     <div className="bg-primary text-primary-foreground p-4 rounded-full shadow-lg hover:scale-105 transition-transform active:scale-95 flex items-center justify-center">
                       <Icon size={28} strokeWidth={2.5} />
                     </div>
-                  </a>
+                  </div>
                 </Link>
               );
             }
 
             return (
               <Link key={item.path} href={item.path}>
-                <a className={cn(
-                  "flex flex-col items-center justify-center w-16 h-12 transition-colors",
+                <div className={cn(
+                  "flex flex-col items-center justify-center w-16 h-12 transition-colors cursor-pointer",
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 )}>
                   <Icon size={22} className={cn("mb-1 transition-transform", isActive && "scale-110")} />
                   <span className="text-[10px] font-medium">{item.label}</span>
-                </a>
+                </div>
               </Link>
             );
           })}
