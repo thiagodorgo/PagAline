@@ -81,7 +81,7 @@ export default function Home() {
       <header className="px-6 pt-12 pb-4 bg-primary text-primary-foreground rounded-b-3xl shadow-md sticky top-0 z-10">
         <div className="flex justify-between items-center mb-6">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight">PayFlow</h1>
+            <h1 className="text-2xl font-bold tracking-tight">PagAline</h1>
             <p className="text-primary-foreground/80 text-sm">{format(new Date(), "MMMM 'de' yyyy", { locale: ptBR }).replace(/^\w/, (c) => c.toUpperCase())}</p>
           </div>
           <Button variant="ghost" size="icon" className="text-primary-foreground hover:bg-primary-foreground/20 rounded-full h-10 w-10">
