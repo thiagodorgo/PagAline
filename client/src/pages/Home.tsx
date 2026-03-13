@@ -1,7 +1,7 @@
 import { useStore, Bill } from "@/lib/store";
 import { format, isToday, isTomorrow, isPast, isThisMonth } from "date-fns";
 import { ptBR } from "date-fns/locale";
-import { Bell, Search, Plus, Filter, CheckCircle2, AlertCircle, Clock, MoreVertical, Check, Calendar as CalendarIcon, Edit, Trash } from "lucide-react";
+import { Bell, Search, Plus, Filter, CheckCircle2, AlertCircle, Clock, MoreVertical, Check, Calendar as CalendarIcon, Edit, Trash, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -124,6 +124,11 @@ function BillItem({
         onMouseLeave={handleTouchEnd}
         className="relative z-10 touch-pan-y"
         whileTap={!isSelectionMode ? { scale: 0.98 } : {}}
+        onClick={() => {
+          if (!isSelectionMode) {
+             onLongPress(bill);
+          }
+        }}
       >
         <Card className={cn(
           "overflow-hidden transition-colors duration-200 cursor-pointer shadow-sm border-0",
@@ -244,7 +249,7 @@ export default function Home() {
   };
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col min-h-full pb-24">
       {/* Header / Top App Bar */}
       <header className="px-6 pt-12 pb-4 bg-primary text-primary-foreground rounded-b-3xl shadow-md sticky top-0 z-10">
         <div className="flex justify-between items-center mb-6">
@@ -315,7 +320,7 @@ export default function Home() {
       </div>
 
       {/* Pending Bills List */}
-      <div className="px-4 pb-8 flex-1">
+      <div className="px-4 flex-1">
         {pendingBills.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-center text-muted-foreground">
             <div className="w-16 h-16 bg-muted rounded-full flex items-center justify-center mb-4">
@@ -326,7 +331,7 @@ export default function Home() {
           </div>
         ) : (
           <div className="space-y-1">
-            <p className="text-xs text-muted-foreground mb-4 ml-2 italic">Dica: Deslize para a direita para pagar, esquerda para agendar. Segure para opções.</p>
+            <p className="text-xs text-muted-foreground mb-4 ml-2 italic">Dica: Toque para ver opções ou deslize para pagar.</p>
             {pendingBills.map((bill) => (
               <BillItem
                 key={bill.id}
@@ -347,8 +352,13 @@ export default function Home() {
       <Drawer open={drawerType === 'options'} onOpenChange={(open) => !open && setDrawerType(null)}>
         <DrawerContent>
           <DrawerHeader>
-            <DrawerTitle>{activeBill?.description}</DrawerTitle>
-            <DrawerDescription>Valor: {activeBill && formatCurrency(activeBill.amount)}</DrawerDescription>
+            <DrawerTitle className="flex justify-between items-center">
+              <span>{activeBill?.description}</span>
+              <span className="text-primary font-bold">{activeBill && formatCurrency(activeBill.amount)}</span>
+            </DrawerTitle>
+            <DrawerDescription>
+              Categoria: {activeBill?.category} • Vencimento: {activeBill && format(activeBill.dueDate, "dd/MM/yyyy")}
+            </DrawerDescription>
           </DrawerHeader>
           <div className="p-4 flex flex-col gap-2">
             <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
@@ -365,7 +375,19 @@ export default function Home() {
               Agendar Pagamento
             </Button>
             <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
-              // Edit mode (mock)
+              toast({
+                title: "Mockup",
+                description: "A funcionalidade de adicionar boleto será implementada em breve.",
+              });
+            }}>
+              <FileText className="mr-3 text-muted-foreground" size={20} />
+              Anexar Boleto / PDF
+            </Button>
+            <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
+              toast({
+                title: "Mockup",
+                description: "Edição de contas em desenvolvimento.",
+              });
               setDrawerType(null);
             }}>
               <Edit className="mr-3 text-muted-foreground" size={20} />
