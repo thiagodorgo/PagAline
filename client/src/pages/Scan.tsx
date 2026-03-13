@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { Camera, Upload, X, Check, Zap, Keyboard } from "lucide-react";
+import { Camera, Upload, X, Check, Zap, Keyboard, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useStore } from "@/lib/store";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 type ScanStep = "camera" | "review";
 
@@ -52,18 +53,29 @@ export default function Scan() {
   };
 
   const handleSave = () => {
+    const amount = parseFloat(formData.amount.replace(',', '.')) || 0;
+    
     addBill({
       description: formData.description || "Nova Conta",
-      amount: parseFloat(formData.amount.replace(',', '.')) || 0,
+      amount,
       dueDate: formData.dueDate ? new Date(formData.dueDate) : new Date(),
       category: formData.category,
       status: "pending"
     });
     
-    toast({
-      title: "Conta salva",
-      description: "A conta foi adicionada com sucesso à sua lista.",
-    });
+    // Simulate alert if amount is high (mocking the spending limit check)
+    if (amount > 1000) {
+      toast({
+        title: "⚠️ Atenção à sua meta!",
+        description: "Esta conta consome uma parte significativa da sua meta mensal.",
+        variant: "destructive"
+      });
+    } else {
+      toast({
+        title: "Conta salva",
+        description: "A conta foi adicionada com sucesso à sua lista.",
+      });
+    }
     
     setLocation("/");
   };
@@ -90,15 +102,15 @@ export default function Scan() {
           </div>
           
           {/* Target Box */}
-          <div className="w-full aspect-[3/4] max-w-sm border-2 border-white/50 rounded-2xl relative z-10 flex flex-col items-center justify-center">
+          <div className="w-full aspect-[3/4] max-w-sm border-2 border-white/50 rounded-2xl relative z-10 flex flex-col items-center justify-center overflow-hidden bg-black/20">
             {isProcessing ? (
-              <div className="flex flex-col items-center animate-pulse">
+              <div className="flex flex-col items-center animate-pulse z-20">
                 <ScanLine className="w-full h-1 bg-primary absolute top-0 animate-[scan_2s_ease-in-out_infinite]" />
                 <p className="text-lg font-medium text-primary">Analisando documento...</p>
-                <p className="text-sm text-white/60 mt-2">Extraindo valores e código de barras</p>
+                <p className="text-sm text-white/60 mt-2 text-center px-4">Localizando código de barras e valores com OCR...</p>
               </div>
             ) : (
-              <div className="text-center p-4 bg-black/40 backdrop-blur-sm rounded-lg">
+              <div className="text-center p-4 bg-black/40 backdrop-blur-sm rounded-lg z-20">
                 <p className="text-white/80 font-medium">Alinhe o boleto na marcação</p>
               </div>
             )}
@@ -120,7 +132,7 @@ export default function Scan() {
           <Button 
             onClick={handleCapture}
             disabled={isProcessing}
-            className="w-20 h-20 rounded-full bg-white hover:bg-zinc-200 border-4 border-zinc-400 p-0 flex items-center justify-center"
+            className="w-20 h-20 rounded-full bg-white hover:bg-zinc-200 border-4 border-zinc-400 p-0 flex items-center justify-center transition-transform active:scale-95"
           >
             <div className="w-16 h-16 rounded-full border-2 border-black"></div>
           </Button>
@@ -134,7 +146,7 @@ export default function Scan() {
   }
 
   return (
-    <div className="flex flex-col min-h-full bg-muted/30">
+    <div className="flex flex-col min-h-full bg-muted/30 pb-24">
       <header className="px-6 pt-12 pb-4 bg-card border-b border-border sticky top-0 z-10 flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => setStep("camera")} className="-ml-2 h-10 w-10 rounded-full">
           <X size={20} />
@@ -143,11 +155,27 @@ export default function Scan() {
       </header>
 
       <div className="p-6 flex-1 space-y-6">
-        <Card className="border-primary/20 shadow-sm overflow-hidden">
-          <div className="bg-primary/10 px-4 py-2 border-b border-primary/10 flex items-center gap-2 text-primary text-sm font-medium">
-            <Zap size={16} />
-            <span>Dados extraídos via OCR</span>
-          </div>
+        {formData.notes.includes("OCR") && (
+          <Alert className="bg-primary/10 border-primary/20 text-primary">
+            <Zap className="h-4 w-4" />
+            <AlertTitle className="text-sm font-semibold">Dados extraídos via OCR</AlertTitle>
+            <AlertDescription className="text-xs">
+              Por favor, confira os valores abaixo para garantir que a leitura foi correta.
+            </AlertDescription>
+          </Alert>
+        )}
+        
+        {parseFloat(formData.amount.replace(',', '.')) > 1000 && (
+          <Alert variant="destructive" className="bg-warning/10 border-warning/20 text-warning-foreground">
+            <AlertTriangle className="h-4 w-4 text-warning" />
+            <AlertTitle className="text-sm font-semibold text-warning">Aviso de Meta!</AlertTitle>
+            <AlertDescription className="text-xs text-warning/80">
+              Este valor compromete grande parte da sua meta mensal restante.
+            </AlertDescription>
+          </Alert>
+        )}
+
+        <Card className="border-border shadow-sm overflow-hidden bg-card">
           <CardContent className="p-4 space-y-4">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Descrição</label>
@@ -210,7 +238,7 @@ export default function Scan() {
           </CardContent>
         </Card>
 
-        <Button onClick={handleSave} className="w-full py-6 text-lg rounded-2xl gap-2 font-semibold">
+        <Button onClick={handleSave} className="w-full py-6 text-lg rounded-2xl gap-2 font-semibold shadow-lg shadow-primary/20">
           <Check size={20} />
           Salvar Conta
         </Button>
@@ -222,7 +250,8 @@ export default function Scan() {
 function ScanLine({ className }: { className?: string }) {
   return (
     <div className={className} style={{
-      boxShadow: "0 0 10px 2px hsl(var(--primary))"
+      boxShadow: "0 0 15px 4px hsl(var(--primary))",
+      animation: "scan 2.5s cubic-bezier(0.4, 0, 0.2, 1) infinite"
     }} />
   );
 }
