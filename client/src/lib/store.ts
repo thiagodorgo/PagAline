@@ -173,12 +173,13 @@ export const useStore = create<AppState>()(
       
       resetData: () => {
         set({
-          bills: [], // Zera completamente a lista de contas, removendo os mockBills iniciais
+          bills: [], // Zera completamente a lista de contas
           categories: initialCategories,
           monthlyGoal: 5000,
           userProfile: {
             name: 'Aline Silva',
-            plan: 'Plano Premium'
+            plan: 'Plano Premium',
+            customPhotoUrl: undefined
           }
         });
       }
