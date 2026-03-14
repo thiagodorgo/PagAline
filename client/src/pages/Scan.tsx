@@ -10,7 +10,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 type ScanStep = "camera" | "review";
 
 export default function Scan() {
-  const [step, setStep] = useState<ScanStep>("camera");
+  const [step, setStep] = useState<ScanStep>("review");
   const [isProcessing, setIsProcessing] = useState(false);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
@@ -148,10 +148,10 @@ export default function Scan() {
   return (
     <div className="flex flex-col min-h-full bg-muted/30 pb-24">
       <header className="px-6 pt-12 pb-4 bg-card border-b border-border sticky top-0 z-10 flex items-center gap-3">
-        <Button variant="ghost" size="icon" onClick={() => setStep("camera")} className="-ml-2 h-10 w-10 rounded-full">
+        <Button variant="ghost" size="icon" onClick={() => setLocation("/")} className="-ml-2 h-10 w-10 rounded-full">
           <X size={20} />
         </Button>
-        <h1 className="text-xl font-bold">Revisar Dados</h1>
+        <h1 className="text-xl font-bold">Adicionar Conta</h1>
       </header>
 
       <div className="p-6 flex-1 space-y-6">

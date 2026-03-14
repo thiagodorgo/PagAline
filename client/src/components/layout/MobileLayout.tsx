@@ -1,5 +1,5 @@
 import { Link, useLocation } from "wouter";
-import { Home, Camera, Calendar, PieChart, Settings, FileText } from "lucide-react";
+import { Home, Camera, Calendar, PieChart, Settings, FileText, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function MobileLayout({ children }: { children: React.ReactNode }) {
@@ -8,7 +8,7 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
   const navItems = [
     { icon: Home, label: "Início", path: "/" },
     { icon: FileText, label: "Contas", path: "/bills" },
-    { icon: Camera, label: "Scan", path: "/scan", isMain: true },
+    { icon: Plus, label: "Adicionar", path: "/scan", isMain: true },
     { icon: PieChart, label: "Resumo", path: "/reports" },
     { icon: Settings, label: "Ajustes", path: "/settings" },
   ];
