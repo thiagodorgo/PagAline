@@ -1,7 +1,4 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { v4 as uuidv4 } from 'uuid';
-import { addDays, subDays } from 'date-fns';
 
 export type BillStatus = 'pending' | 'paid' | 'overdue';
 
@@ -9,195 +6,156 @@ export interface Bill {
   id: string;
   description: string;
   amount: number;
-  dueDate: Date;
+  dueDate: string;
   category: string;
-  status: BillStatus;
-  notes?: string;
-  imageUrl?: string;
-  paidDate?: Date;
-  createdAt: Date;
+  status: string;
+  notes?: string | null;
+  imageUrl?: string | null;
+  paidDate?: string | null;
+  createdAt: string;
 }
 
-interface UserProfile {
+export interface Category {
+  id: string;
   name: string;
-  plan: string;
-  customPhotoUrl?: string; // Added to support custom photo upload
+}
+
+export interface UserSettings {
+  id: string;
+  userName: string;
+  userPlan: string;
+  customPhotoUrl?: string | null;
+  monthlyGoal: number;
 }
 
 interface AppState {
   bills: Bill[];
-  categories: string[];
-  userProfile: UserProfile;
-  monthlyGoal: number;
-  
-  addBill: (bill: Omit<Bill, 'id' | 'createdAt'>) => void;
-  updateBill: (id: string, bill: Partial<Bill>) => void;
-  markAsPaid: (id: string) => void;
-  markMultipleAsPaid: (ids: string[]) => void;
-  deleteBill: (id: string) => void;
-  
-  getCategories: () => string[];
-  addCategory: (category: string) => void;
-  deleteCategory: (category: string) => void;
-  
-  updateUserProfile: (profile: Partial<UserProfile>) => void;
-  updateMonthlyGoal: (goal: number) => void;
-  
-  resetData: () => void;
+  categories: Category[];
+  settings: UserSettings | null;
+  isLoading: boolean;
+
+  fetchBills: () => Promise<void>;
+  addBill: (bill: Omit<Bill, 'id' | 'createdAt'>) => Promise<void>;
+  updateBill: (id: string, bill: Partial<Bill>) => Promise<void>;
+  markAsPaid: (id: string) => Promise<void>;
+  markMultipleAsPaid: (ids: string[]) => Promise<void>;
+  deleteBill: (id: string) => Promise<void>;
+
+  fetchCategories: () => Promise<void>;
+  addCategory: (name: string) => Promise<void>;
+  deleteCategory: (id: string) => Promise<void>;
+
+  fetchSettings: () => Promise<void>;
+  updateSettings: (data: Partial<UserSettings>) => Promise<void>;
+
+  resetData: () => Promise<void>;
 }
 
-const initialCategories = ['Casa', 'Transporte', 'Educação', 'Saúde', 'Lazer', 'Impostos', 'Outros'];
-
-const mockBills: Bill[] = [
-  {
-    id: uuidv4(),
-    description: 'Aluguel',
-    amount: 1500.00,
-    dueDate: new Date(),
-    category: 'Casa',
-    status: 'pending',
-    createdAt: new Date(),
-  },
-  {
-    id: uuidv4(),
-    description: 'Conta de Luz',
-    amount: 180.50,
-    dueDate: addDays(new Date(), 2),
-    category: 'Casa',
-    status: 'pending',
-    createdAt: new Date(),
-  },
-  {
-    id: uuidv4(),
-    description: 'Internet',
-    amount: 99.90,
-    dueDate: addDays(new Date(), 5),
-    category: 'Casa',
-    status: 'pending',
-    createdAt: new Date(),
-  },
-  {
-    id: uuidv4(),
-    description: 'Mensalidade Escola',
-    amount: 850.00,
-    dueDate: subDays(new Date(), 1),
-    category: 'Educação',
-    status: 'overdue',
-    createdAt: new Date(),
-  },
-  {
-    id: uuidv4(),
-    description: 'Plano de Saúde',
-    amount: 450.00,
-    dueDate: subDays(new Date(), 10),
-    category: 'Saúde',
-    status: 'paid',
-    paidDate: subDays(new Date(), 10),
-    createdAt: new Date(),
+async function api(url: string, options?: RequestInit) {
+  const res = await fetch(url, {
+    ...options,
+    headers: { 'Content-Type': 'application/json', ...options?.headers },
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => res.statusText);
+    throw new Error(text);
   }
-];
+  if (res.status === 204) return null;
+  return res.json();
+}
 
-export const useStore = create<AppState>()(
-  persist(
-    (set, get) => ({
-      bills: mockBills,
-      categories: initialCategories,
-      userProfile: {
-        name: 'Aline Silva',
-        plan: 'Plano Premium'
-      },
-      monthlyGoal: 5000,
-      
-      addBill: (billData) => {
-        const newBill: Bill = {
-          ...billData,
-          id: uuidv4(),
-          createdAt: new Date(),
-        };
-        set((state) => ({ bills: [...state.bills, newBill] }));
-      },
-      
-      updateBill: (id, billData) => {
-        set((state) => ({
-          bills: state.bills.map((bill) => 
-            bill.id === id ? { ...bill, ...billData } : bill
-          ),
-        }));
-      },
-      
-      markAsPaid: (id) => {
-        set((state) => ({
-          bills: state.bills.map((bill) => 
-            bill.id === id ? { ...bill, status: 'paid', paidDate: new Date() } : bill
-          ),
-        }));
-      },
+export const useStore = create<AppState>()((set, get) => ({
+  bills: [],
+  categories: [],
+  settings: null,
+  isLoading: true,
 
-      markMultipleAsPaid: (ids) => {
-        set((state) => ({
-          bills: state.bills.map((bill) => 
-            ids.includes(bill.id) ? { ...bill, status: 'paid', paidDate: new Date() } : bill
-          ),
-        }));
-      },
-      
-      deleteBill: (id) => {
-        set((state) => ({
-          bills: state.bills.filter((bill) => bill.id !== id),
-        }));
-      },
+  fetchBills: async () => {
+    const bills = await api('/api/bills');
+    set({ bills, isLoading: false });
+  },
 
-      getCategories: () => get().categories,
-      
-      addCategory: (category) => {
-        if (!get().categories.includes(category)) {
-          set((state) => ({ categories: [...state.categories, category] }));
-        }
-      },
-      
-      deleteCategory: (category) => {
-        set((state) => ({ 
-          categories: state.categories.filter(c => c !== category) 
-        }));
-      },
-      
-      updateUserProfile: (profile) => {
-        set((state) => ({
-          userProfile: { ...state.userProfile, ...profile }
-        }));
-      },
-      
-      updateMonthlyGoal: (goal) => {
-        set({ monthlyGoal: goal });
-      },
-      
-      resetData: () => {
-        set({
-          bills: [], // Zera completamente a lista de contas
-          categories: initialCategories,
-          monthlyGoal: 5000,
-          userProfile: {
-            name: 'Aline Silva',
-            plan: 'Plano Premium',
-            customPhotoUrl: undefined
-          }
-        });
-      }
-    }),
-    {
-      name: 'pagaline-storage',
-      // Convert dates correctly when hydrating from localStorage
-      merge: (persistedState: any, currentState) => {
-        if (persistedState && persistedState.bills) {
-          persistedState.bills = persistedState.bills.map((bill: any) => ({
-            ...bill,
-            dueDate: new Date(bill.dueDate),
-            createdAt: new Date(bill.createdAt),
-            paidDate: bill.paidDate ? new Date(bill.paidDate) : undefined,
-          }));
-        }
-        return { ...currentState, ...persistedState };
-      },
-    }
-  )
-);
+  addBill: async (billData) => {
+    const bill = await api('/api/bills', {
+      method: 'POST',
+      body: JSON.stringify(billData),
+    });
+    set((state) => ({ bills: [...state.bills, bill] }));
+  },
+
+  updateBill: async (id, data) => {
+    const updated = await api(`/api/bills/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    set((state) => ({
+      bills: state.bills.map((b) => (b.id === id ? updated : b)),
+    }));
+  },
+
+  markAsPaid: async (id) => {
+    const updated = await api(`/api/bills/${id}/pay`, { method: 'POST' });
+    set((state) => ({
+      bills: state.bills.map((b) => (b.id === id ? updated : b)),
+    }));
+  },
+
+  markMultipleAsPaid: async (ids) => {
+    await api('/api/bills/pay-multiple', {
+      method: 'POST',
+      body: JSON.stringify({ ids }),
+    });
+    set((state) => ({
+      bills: state.bills.map((b) =>
+        ids.includes(b.id)
+          ? { ...b, status: 'paid', paidDate: new Date().toISOString() }
+          : b
+      ),
+    }));
+  },
+
+  deleteBill: async (id) => {
+    await api(`/api/bills/${id}`, { method: 'DELETE' });
+    set((state) => ({ bills: state.bills.filter((b) => b.id !== id) }));
+  },
+
+  fetchCategories: async () => {
+    const categories = await api('/api/categories');
+    set({ categories });
+  },
+
+  addCategory: async (name) => {
+    const cat = await api('/api/categories', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    });
+    set((state) => ({ categories: [...state.categories, cat] }));
+  },
+
+  deleteCategory: async (id) => {
+    await api(`/api/categories/${id}`, { method: 'DELETE' });
+    set((state) => ({
+      categories: state.categories.filter((c) => c.id !== id),
+    }));
+  },
+
+  fetchSettings: async () => {
+    const settings = await api('/api/settings');
+    set({ settings });
+  },
+
+  updateSettings: async (data) => {
+    const updated = await api('/api/settings', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    set({ settings: updated });
+  },
+
+  resetData: async () => {
+    await api('/api/reset', { method: 'POST' });
+    await get().fetchBills();
+    await get().fetchCategories();
+    await get().fetchSettings();
+  },
+}));

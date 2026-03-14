@@ -1,5 +1,6 @@
 import { useStore, Bill } from "@/lib/store";
-import { format, isToday, isTomorrow, isPast, isThisMonth } from "date-fns";
+import { useEffect } from "react";
+import { format, isToday, isTomorrow, isPast, isThisMonth, parseISO } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Bell, Search, Plus, Filter, CheckCircle2, AlertCircle, Clock, MoreVertical, Check, Calendar as CalendarIcon, Edit, Trash, FileText } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -13,12 +14,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { motion, useAnimation, PanInfo } from "framer-motion";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerFooter, DrawerClose } from "@/components/ui/drawer";
 
-// Format functions outside component to be shared
 const formatCurrency = (value: number) => {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 };
 
-const getDueDateLabel = (date: Date, status: string) => {
+const toDate = (d: string | Date) => (typeof d === 'string' ? parseISO(d) : d);
+
+const getDueDateLabel = (dateStr: string, status: string) => {
+  const date = toDate(dateStr);
   if (status === 'paid') return 'Pago';
   if (isPast(date) && !isToday(date)) return 'Vencido';
   if (isToday(date)) return 'Vence hoje';
@@ -26,7 +29,8 @@ const getDueDateLabel = (date: Date, status: string) => {
   return `Vence em ${format(date, "dd MMM", { locale: ptBR })}`;
 };
 
-const getStatusColor = (date: Date, status: string) => {
+const getStatusColor = (dateStr: string, status: string) => {
+  const date = toDate(dateStr);
   if (status === 'paid') return 'text-success bg-success/10 border-success/20';
   if (isPast(date) && !isToday(date)) return 'text-destructive bg-destructive/10 border-destructive/20';
   if (isToday(date) || isTomorrow(date)) return 'text-warning bg-warning/10 border-warning/20';
@@ -34,57 +38,32 @@ const getStatusColor = (date: Date, status: string) => {
 };
 
 function BillItem({ 
-  bill, 
-  isSelectionMode, 
-  isSelected, 
-  toggleSelection, 
-  onPay, 
-  onSchedule, 
-  onLongPress 
+  bill, isSelectionMode, isSelected, toggleSelection, onPay, onSchedule, onLongPress 
 }: { 
-  bill: Bill;
-  isSelectionMode: boolean;
-  isSelected: boolean;
-  toggleSelection: (id: string) => void;
-  onPay: (id: string) => void;
-  onSchedule: (bill: Bill) => void;
-  onLongPress: (bill: Bill) => void;
+  bill: Bill; isSelectionMode: boolean; isSelected: boolean;
+  toggleSelection: (id: string) => void; onPay: (id: string) => void;
+  onSchedule: (bill: Bill) => void; onLongPress: (bill: Bill) => void;
 }) {
   const controls = useAnimation();
   const timerRef = useRef<NodeJS.Timeout | null>(null);
-  
-  // Custom hook fix: use drag controls locally to trigger UI updates without error
   const [dragOffset, setDragOffset] = useState(0);
 
   const handleTouchStart = () => {
     if (isSelectionMode) return;
-    timerRef.current = setTimeout(() => {
-      onLongPress(bill);
-    }, 2000);
+    timerRef.current = setTimeout(() => { onLongPress(bill); }, 2000);
   };
+  const handleTouchEnd = () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  const handleDragStart = () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  const handleDrag = (_e: any, info: PanInfo) => { setDragOffset(info.offset.x); };
 
-  const handleTouchEnd = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-  };
-
-  const handleDragStart = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-  };
-
-  const handleDrag = (e: any, info: PanInfo) => {
-    setDragOffset(info.offset.x);
-  };
-
-  const handleDragEnd = async (e: any, info: PanInfo) => {
+  const handleDragEnd = async (_e: any, info: PanInfo) => {
     const threshold = 100;
     const velocity = info.velocity.x;
     setDragOffset(0);
-    
-    // Increased threshold for dragging, velocity still matters for fast swipes
     if (info.offset.x > threshold || (info.offset.x > 30 && velocity > 500)) {
       controls.start({ x: 500, transition: { duration: 0.2 } }).then(() => {
         onPay(bill.id);
-        controls.set({ x: 0 }); // Reset position for future renders
+        controls.set({ x: 0 });
       });
     } else if (info.offset.x < -threshold || (info.offset.x < -30 && velocity < -500)) {
       onSchedule(bill);
@@ -96,7 +75,6 @@ function BillItem({
 
   return (
     <div className="relative rounded-xl overflow-hidden bg-muted mb-3">
-      {/* Background actions (Swipe) */}
       <div className="absolute inset-0 flex justify-between items-center px-6">
         <div className={cn("flex items-center gap-2 font-medium transition-opacity", dragOffset > 40 ? "text-success opacity-100" : "text-muted-foreground opacity-50")}>
           <CheckCircle2 size={22} />
@@ -124,28 +102,18 @@ function BillItem({
         onMouseLeave={handleTouchEnd}
         className="relative z-10 touch-pan-y"
         whileTap={!isSelectionMode ? { scale: 0.98 } : {}}
-        onClick={() => {
-          if (!isSelectionMode) {
-             onLongPress(bill);
-          }
-        }}
+        onClick={() => { if (!isSelectionMode) onLongPress(bill); }}
       >
         <Card className={cn(
           "overflow-hidden transition-colors duration-200 cursor-pointer shadow-sm border-0",
           isSelectionMode && isSelected ? "border-2 border-primary bg-primary/5" : ""
         )}
-        onClick={() => {
-          if (isSelectionMode) toggleSelection(bill.id);
-        }}>
+        onClick={() => { if (isSelectionMode) toggleSelection(bill.id); }}>
           <CardContent className="p-0">
             <div className="flex items-center p-4 bg-card h-[88px]">
               {isSelectionMode && (
                 <div className="pr-4" onClick={(e) => e.stopPropagation()}>
-                  <Checkbox 
-                    checked={isSelected}
-                    onCheckedChange={() => toggleSelection(bill.id)}
-                    className="h-5 w-5 rounded-full"
-                  />
+                  <Checkbox checked={isSelected} onCheckedChange={() => toggleSelection(bill.id)} className="h-5 w-5 rounded-full" />
                 </div>
               )}
               <div className="flex-1 min-w-0">
@@ -172,95 +140,67 @@ function BillItem({
 
 export default function Home() {
   const bills = useStore((state) => state.bills);
+  const categories = useStore((state) => state.categories);
   const markAsPaid = useStore((state) => state.markAsPaid);
   const markMultipleAsPaid = useStore((state) => state.markMultipleAsPaid);
   const deleteBill = useStore((state) => state.deleteBill);
+  const updateBill = useStore((state) => state.updateBill);
+  const fetchBills = useStore((state) => state.fetchBills);
+  const fetchCategories = useStore((state) => state.fetchCategories);
   const { toast } = useToast();
   
+  useEffect(() => { fetchBills(); fetchCategories(); }, []);
+
   const [selectedBills, setSelectedBills] = useState<string[]>([]);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
-
-  // Drawer states
   const [activeBill, setActiveBill] = useState<Bill | null>(null);
   const [drawerType, setDrawerType] = useState<'schedule' | 'options' | 'edit' | null>(null);
-  
-  const [editForm, setEditForm] = useState({
-    description: '',
-    amount: '',
-    dueDate: '',
-    category: ''
-  });
-  
-  const categories = useStore((state) => state.categories);
-  const updateBill = useStore((state) => state.updateBill);
+  const [editForm, setEditForm] = useState({ description: '', amount: '', dueDate: '', category: '' });
 
-  const pendingBills = bills.filter(b => b.status !== 'paid').sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
+  const pendingBills = bills
+    .filter(b => b.status !== 'paid')
+    .sort((a, b) => new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime());
   
   const totalPending = pendingBills.reduce((acc, bill) => acc + bill.amount, 0);
-  const totalPaidThisMonth = bills.filter(b => b.status === 'paid' && isThisMonth(b.paidDate || new Date())).reduce((acc, bill) => acc + bill.amount, 0);
+  const totalPaidThisMonth = bills
+    .filter(b => b.status === 'paid' && b.paidDate && isThisMonth(toDate(b.paidDate)))
+    .reduce((acc, bill) => acc + bill.amount, 0);
 
-  const toggleSelectionMode = () => {
-    setIsSelectionMode(!isSelectionMode);
-    setSelectedBills([]);
-  };
-
+  const toggleSelectionMode = () => { setIsSelectionMode(!isSelectionMode); setSelectedBills([]); };
   const toggleBillSelection = (id: string) => {
-    setSelectedBills(prev => 
-      prev.includes(id) ? prev.filter(bId => bId !== id) : [...prev, id]
-    );
+    setSelectedBills(prev => prev.includes(id) ? prev.filter(bId => bId !== id) : [...prev, id]);
   };
 
-  const handlePaySelected = () => {
+  const handlePaySelected = async () => {
     if (selectedBills.length === 0) return;
-    
-    markMultipleAsPaid(selectedBills);
-    toast({
-      title: "Contas pagas",
-      description: `${selectedBills.length} conta(s) marcadas como pagas com sucesso.`,
-    });
-    setIsSelectionMode(false);
-    setSelectedBills([]);
+    await markMultipleAsPaid(selectedBills);
+    toast({ title: "Contas pagas", description: `${selectedBills.length} conta(s) marcadas como pagas com sucesso.` });
+    setIsSelectionMode(false); setSelectedBills([]);
   };
 
-  const handlePaySingle = (id: string) => {
-    markAsPaid(id);
-    toast({
-      title: "Conta paga",
-      description: "A conta foi marcada como paga e movida para o histórico.",
-    });
+  const handlePaySingle = async (id: string) => {
+    await markAsPaid(id);
+    toast({ title: "Conta paga", description: "A conta foi marcada como paga e movida para o histórico." });
   };
 
-  const handleSchedule = (bill: Bill) => {
-    setActiveBill(bill);
-    setDrawerType('schedule');
-  };
-
+  const handleSchedule = (bill: Bill) => { setActiveBill(bill); setDrawerType('schedule'); };
   const handleLongPress = (bill: Bill) => {
     if (!isSelectionMode) {
-      setActiveBill(bill);
-      setDrawerType('options');
-      // Trigger haptic feedback if available
-      if (window.navigator && window.navigator.vibrate) {
-        window.navigator.vibrate(50);
-      }
+      setActiveBill(bill); setDrawerType('options');
+      if (window.navigator && window.navigator.vibrate) window.navigator.vibrate(50);
     }
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (activeBill) {
-      deleteBill(activeBill.id);
-      toast({
-        title: "Conta excluída",
-        description: "A conta foi removida com sucesso.",
-        variant: "destructive"
-      });
+      await deleteBill(activeBill.id);
+      toast({ title: "Conta excluída", description: "A conta foi removida com sucesso.", variant: "destructive" });
       setDrawerType(null);
     }
   };
 
   return (
     <div className="flex flex-col min-h-full pb-24">
-      {/* Header / Top App Bar */}
       <header className="px-6 pt-12 pb-4 bg-primary text-primary-foreground rounded-b-3xl shadow-md sticky top-0 z-10">
         <div className="flex justify-between items-center mb-6">
           <div>
@@ -271,8 +211,6 @@ export default function Home() {
             <Bell size={20} />
           </Button>
         </div>
-
-        {/* Dashboard KPIs */}
         <div className="grid grid-cols-2 gap-4">
           <Card className="bg-primary-foreground/10 border-none text-primary-foreground shadow-none">
             <CardContent className="p-4">
@@ -290,7 +228,6 @@ export default function Home() {
         </div>
       </header>
 
-      {/* Action Bar */}
       <div className="px-6 py-4 flex items-center justify-between">
         {isSelectionMode ? (
           <div className="flex items-center justify-between w-full animate-in fade-in">
@@ -306,17 +243,11 @@ export default function Home() {
           <div className="flex items-center justify-between w-full animate-in fade-in">
             <h2 className="text-lg font-semibold tracking-tight">Próximos Vencimentos</h2>
             <div className="flex gap-2">
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                <Search size={18} />
-              </Button>
-              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                <Filter size={18} />
-              </Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full"><Search size={18} /></Button>
+              <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full"><Filter size={18} /></Button>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full">
-                    <MoreVertical size={18} />
-                  </Button>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full"><MoreVertical size={18} /></Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   <DropdownMenuItem onClick={toggleSelectionMode}>
@@ -329,7 +260,6 @@ export default function Home() {
         )}
       </div>
 
-      {/* Pending Bills List */}
       <div className="px-4 flex-1">
         {pendingBills.length === 0 ? (
           <div className="flex flex-col items-center justify-center h-48 text-center text-muted-foreground">
@@ -343,22 +273,14 @@ export default function Home() {
           <div className="space-y-1">
             <p className="text-xs text-muted-foreground mb-4 ml-2 italic">Dica: Toque para ver opções ou deslize para pagar.</p>
             {pendingBills.map((bill) => (
-              <BillItem
-                key={bill.id}
-                bill={bill}
-                isSelectionMode={isSelectionMode}
-                isSelected={selectedBills.includes(bill.id)}
-                toggleSelection={toggleBillSelection}
-                onPay={handlePaySingle}
-                onSchedule={handleSchedule}
-                onLongPress={handleLongPress}
-              />
+              <BillItem key={bill.id} bill={bill} isSelectionMode={isSelectionMode}
+                isSelected={selectedBills.includes(bill.id)} toggleSelection={toggleBillSelection}
+                onPay={handlePaySingle} onSchedule={handleSchedule} onLongPress={handleLongPress} />
             ))}
           </div>
         )}
       </div>
 
-      {/* Drawers */}
       <Drawer open={drawerType === 'options'} onOpenChange={(open) => !open && setDrawerType(null)}>
         <DrawerContent>
           <DrawerHeader>
@@ -367,31 +289,20 @@ export default function Home() {
               <span className="text-primary font-bold">{activeBill && formatCurrency(activeBill.amount)}</span>
             </DrawerTitle>
             <DrawerDescription>
-              Categoria: {activeBill?.category} • Vencimento: {activeBill && format(activeBill.dueDate, "dd/MM/yyyy")}
+              Categoria: {activeBill?.category} • Vencimento: {activeBill && format(toDate(activeBill.dueDate), "dd/MM/yyyy")}
             </DrawerDescription>
           </DrawerHeader>
           <div className="p-4 flex flex-col gap-2">
-            <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
-              handlePaySingle(activeBill!.id);
-              setDrawerType(null);
-            }}>
-              <CheckCircle2 className="mr-3 text-success" size={20} />
-              Marcar como Paga
+            <Button variant="outline" className="justify-start text-base py-6" onClick={() => { handlePaySingle(activeBill!.id); setDrawerType(null); }}>
+              <CheckCircle2 className="mr-3 text-success" size={20} /> Marcar como Paga
+            </Button>
+            <Button variant="outline" className="justify-start text-base py-6" onClick={() => setDrawerType('schedule')}>
+              <CalendarIcon className="mr-3 text-primary" size={20} /> Agendar Pagamento
             </Button>
             <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
-              setDrawerType('schedule');
+              toast({ title: "Em desenvolvimento", description: "A funcionalidade de adicionar boleto estará disponível na próxima versão." });
             }}>
-              <CalendarIcon className="mr-3 text-primary" size={20} />
-              Agendar Pagamento
-            </Button>
-            <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
-              toast({
-                title: "Em desenvolvimento",
-                description: "A funcionalidade de adicionar boleto estará disponível na próxima versão.",
-              });
-            }}>
-              <FileText className="mr-3 text-muted-foreground" size={20} />
-              Anexar Boleto / PDF
+              <FileText className="mr-3 text-muted-foreground" size={20} /> Anexar Boleto / PDF
             </Button>
             <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
               if (activeBill) {
@@ -404,12 +315,10 @@ export default function Home() {
                 setDrawerType('edit');
               }
             }}>
-              <Edit className="mr-3 text-muted-foreground" size={20} />
-              Editar Conta
+              <Edit className="mr-3 text-muted-foreground" size={20} /> Editar Conta
             </Button>
             <Button variant="outline" className="justify-start text-base py-6 text-destructive hover:text-destructive hover:bg-destructive/10 border-destructive/20" onClick={handleDelete}>
-              <Trash className="mr-3" size={20} />
-              Excluir Conta
+              <Trash className="mr-3" size={20} /> Excluir Conta
             </Button>
           </div>
         </DrawerContent>
@@ -424,24 +333,14 @@ export default function Home() {
           <div className="p-4 space-y-4">
             <div className="space-y-2">
               <label className="text-sm font-medium">Data do Agendamento</label>
-              <input 
-                type="date" 
-                className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50"
-                defaultValue={activeBill ? new Date(activeBill.dueDate).toISOString().split('T')[0] : ''}
-              />
+              <input type="date" className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50"
+                defaultValue={activeBill ? new Date(activeBill.dueDate).toISOString().split('T')[0] : ''} />
             </div>
             <Button className="w-full py-6 text-lg rounded-2xl" onClick={() => {
-              toast({
-                title: "Pagamento agendado",
-                description: "O pagamento foi agendado para a data selecionada.",
-              });
+              toast({ title: "Pagamento agendado", description: "O pagamento foi agendado para a data selecionada." });
               setDrawerType(null);
-            }}>
-              Confirmar Agendamento
-            </Button>
-            <DrawerClose asChild>
-              <Button variant="ghost" className="w-full">Cancelar</Button>
-            </DrawerClose>
+            }}>Confirmar Agendamento</Button>
+            <DrawerClose asChild><Button variant="ghost" className="w-full">Cancelar</Button></DrawerClose>
           </div>
         </DrawerContent>
       </Drawer>
@@ -455,67 +354,45 @@ export default function Home() {
           <div className="p-4 space-y-4 overflow-y-auto">
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Descrição</label>
-              <input 
-                type="text" 
-                value={editForm.description}
+              <input type="text" value={editForm.description}
                 onChange={e => setEditForm({...editForm, description: e.target.value})}
-                className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium"
-              />
+                className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium" />
             </div>
-            
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Valor (R$)</label>
-                <input 
-                  type="number" 
-                  step="0.01"
-                  value={editForm.amount}
+                <input type="number" step="0.01" value={editForm.amount}
                   onChange={e => setEditForm({...editForm, amount: e.target.value})}
-                  className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-bold text-lg"
-                />
+                  className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-bold text-lg" />
               </div>
               <div className="space-y-1.5">
                 <label className="text-xs font-medium text-muted-foreground">Vencimento</label>
-                <input 
-                  type="date" 
-                  value={editForm.dueDate}
+                <input type="date" value={editForm.dueDate}
                   onChange={e => setEditForm({...editForm, dueDate: e.target.value})}
-                  className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium"
-                />
+                  className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium" />
               </div>
             </div>
-
             <div className="space-y-1.5">
               <label className="text-xs font-medium text-muted-foreground">Categoria</label>
-              <select 
-                value={editForm.category}
+              <select value={editForm.category}
                 onChange={e => setEditForm({...editForm, category: e.target.value})}
-                className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium"
-              >
-                {categories.map((c: string) => <option key={c} value={c}>{c}</option>)}
+                className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium">
+                {categories.map((c) => <option key={c.id} value={c.name}>{c.name}</option>)}
               </select>
             </div>
-
-            <Button className="w-full py-6 text-lg rounded-2xl mt-4" onClick={() => {
+            <Button className="w-full py-6 text-lg rounded-2xl mt-4" onClick={async () => {
               if (activeBill) {
-                updateBill(activeBill.id, {
+                await updateBill(activeBill.id, {
                   description: editForm.description,
                   amount: parseFloat(editForm.amount) || 0,
-                  dueDate: editForm.dueDate ? new Date(editForm.dueDate) : activeBill.dueDate,
+                  dueDate: editForm.dueDate ? new Date(editForm.dueDate).toISOString() : activeBill.dueDate,
                   category: editForm.category
                 });
-                toast({
-                  title: "Conta atualizada",
-                  description: "Os dados da conta foram salvos.",
-                });
+                toast({ title: "Conta atualizada", description: "Os dados da conta foram salvos." });
                 setDrawerType(null);
               }
-            }}>
-              Salvar Alterações
-            </Button>
-            <DrawerClose asChild>
-              <Button variant="ghost" className="w-full">Cancelar</Button>
-            </DrawerClose>
+            }}>Salvar Alterações</Button>
+            <DrawerClose asChild><Button variant="ghost" className="w-full">Cancelar</Button></DrawerClose>
           </div>
         </DrawerContent>
       </Drawer>
