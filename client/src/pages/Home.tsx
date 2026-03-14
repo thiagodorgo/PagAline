@@ -376,8 +376,8 @@ export default function Home() {
             </Button>
             <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
               toast({
-                title: "Mockup",
-                description: "A funcionalidade de adicionar boleto será implementada em breve.",
+                title: "Em desenvolvimento",
+                description: "A funcionalidade de adicionar boleto estará disponível na próxima versão.",
               });
             }}>
               <FileText className="mr-3 text-muted-foreground" size={20} />
@@ -385,8 +385,8 @@ export default function Home() {
             </Button>
             <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
               toast({
-                title: "Mockup",
-                description: "Edição de contas em desenvolvimento.",
+                title: "Em desenvolvimento",
+                description: "Edição de contas estará disponível na próxima versão.",
               });
               setDrawerType(null);
             }}>

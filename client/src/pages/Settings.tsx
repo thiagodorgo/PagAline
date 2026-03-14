@@ -78,14 +78,17 @@ export default function Settings() {
     }
   };
 
-  // Mock Photo Upload
+  // Mock Photo Upload converting to Base64 to persist locally
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      // In a real app we'd upload to a server. Here we'll create a local object URL to display it
-      const imageUrl = URL.createObjectURL(file);
-      updateUserProfile({ customPhotoUrl: imageUrl });
-      toast({ title: "Foto atualizada", description: "Sua foto de perfil foi alterada com sucesso." });
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        updateUserProfile({ customPhotoUrl: base64String });
+        toast({ title: "Foto atualizada", description: "Sua foto de perfil foi salva localmente com sucesso." });
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -183,7 +186,7 @@ export default function Settings() {
           </Card>
         </div>
 
-        {/* Contas Bancárias */}
+        {/* Contas Bancárias - Comentado para a versão de testes local
         <div className="space-y-4">
           <h3 className="text-sm font-semibold text-muted-foreground px-2 uppercase tracking-wider">Integrações</h3>
           <Card className="overflow-hidden">
@@ -210,6 +213,7 @@ export default function Settings() {
             </div>
           </Card>
         </div>
+        */}
 
         {/* Settings Groups */}
         <div className="space-y-4">
@@ -407,7 +411,7 @@ export default function Settings() {
         </DrawerContent>
       </Drawer>
 
-      {/* Drawer Open Finance / Bancos */}
+      {/* Drawer Open Finance / Bancos - Comentado para a versão local 
       <Drawer open={isBankDrawerOpen} onOpenChange={setIsBankDrawerOpen}>
         <DrawerContent>
           <DrawerHeader>
@@ -451,6 +455,7 @@ export default function Settings() {
           </div>
         </DrawerContent>
       </Drawer>
+      */}
 
     </div>
   );
