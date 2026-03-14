@@ -1,9 +1,9 @@
-import { User, Bell, Shield, CircleHelp, LogOut, ChevronRight, Moon, Smartphone, Edit2, Target, Building, Plus, Trash2, RefreshCcw } from "lucide-react";
+import { User, Bell, Shield, CircleHelp, LogOut, ChevronRight, Moon, Smartphone, Edit2, Target, Building, Plus, Trash2, RefreshCcw, Camera } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from "@/components/ui/drawer";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +13,7 @@ export default function Settings() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Store values
   const categories = useStore(state => state.categories);
@@ -36,6 +37,8 @@ export default function Settings() {
 
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
   const [newName, setNewName] = useState(userProfile.name);
+  
+  const [isBankDrawerOpen, setIsBankDrawerOpen] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -64,7 +67,7 @@ export default function Settings() {
     if (newName.trim()) {
       updateUserProfile({ name: newName.trim() });
       setIsProfileDrawerOpen(false);
-      toast({ title: "Perfil atualizado", description: "Seu nome foi alterado com sucesso." });
+      toast({ title: "Perfil atualizado", description: "Seus dados foram alterados com sucesso." });
     }
   };
 
@@ -72,6 +75,17 @@ export default function Settings() {
     if (window.confirm("Isso apagará todas as suas contas. Tem certeza?")) {
       resetData();
       toast({ title: "Dados apagados", description: "O aplicativo foi resetado para o estado inicial." });
+    }
+  };
+
+  // Mock Photo Upload
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // In a real app we'd upload to a server. Here we'll create a local object URL to display it
+      const imageUrl = URL.createObjectURL(file);
+      updateUserProfile({ customPhotoUrl: imageUrl });
+      toast({ title: "Foto atualizada", description: "Sua foto de perfil foi alterada com sucesso." });
     }
   };
 
@@ -88,6 +102,9 @@ export default function Settings() {
     return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
   };
 
+  // Display proper avatar image
+  const avatarSrc = userProfile.customPhotoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile.name}`;
+
   return (
     <div className="flex flex-col min-h-full pb-24">
       <header className="px-6 pt-12 pb-4 bg-card border-b border-border sticky top-0 z-10">
@@ -103,7 +120,7 @@ export default function Settings() {
           >
             <div className="relative group">
               <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-primary overflow-hidden">
-                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile.name}`} alt="Profile" className="w-full h-full object-cover" />
+                <img src={avatarSrc} alt="Profile" className="w-full h-full object-cover" />
               </div>
               <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <Edit2 className="text-white w-5 h-5" />
@@ -185,12 +202,7 @@ export default function Settings() {
               </div>
               <div 
                 className="flex items-center justify-center p-4 bg-card cursor-pointer hover:bg-muted/50 transition-colors text-primary font-medium gap-2"
-                onClick={() => {
-                  toast({
-                    title: "Mockup",
-                    description: "Esta funcionalidade será ativada na versão completa.",
-                  });
-                }}
+                onClick={() => setIsBankDrawerOpen(true)}
               >
                 <Plus size={18} />
                 Vincular nova conta
@@ -320,26 +332,42 @@ export default function Settings() {
         </DrawerContent>
       </Drawer>
 
-      {/* Drawer Perfil */}
+      {/* Drawer Perfil com Upload de Imagem */}
       <Drawer open={isProfileDrawerOpen} onOpenChange={setIsProfileDrawerOpen}>
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>Editar Perfil</DrawerTitle>
-            <DrawerDescription>Altere suas informações pessoais.</DrawerDescription>
+            <DrawerDescription>Altere sua foto e seu nome.</DrawerDescription>
           </DrawerHeader>
-          <div className="p-4 space-y-4">
-            <div className="flex justify-center mb-4">
-              <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center text-primary overflow-hidden border-2 border-primary">
-                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${newName || 'Aline'}`} alt="Profile" className="w-full h-full object-cover" />
+          <div className="p-4 space-y-6">
+            <div className="flex flex-col items-center gap-4">
+              <div 
+                className="relative w-28 h-28 rounded-full bg-primary/20 flex items-center justify-center text-primary overflow-hidden border-4 border-primary/20 cursor-pointer group"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <img src={avatarSrc} alt="Profile" className="w-full h-full object-cover" />
+                <div className="absolute inset-0 bg-black/50 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                  <Camera className="text-white mb-1" size={24} />
+                  <span className="text-white text-xs font-medium">Trocar Foto</span>
+                </div>
               </div>
+              <input 
+                type="file" 
+                ref={fileInputRef}
+                className="hidden" 
+                accept="image/png, image/jpeg, image/webp"
+                onChange={handlePhotoUpload}
+              />
+              <p className="text-xs text-muted-foreground">Toque na foto para alterar</p>
             </div>
+            
             <div className="space-y-2">
               <label className="text-sm font-medium">Nome de Usuário</label>
               <input 
                 type="text" 
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
-                className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium"
+                className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium text-lg"
               />
             </div>
             <Button className="w-full py-6 text-lg rounded-2xl" onClick={handleSaveProfile}>
@@ -374,6 +402,51 @@ export default function Settings() {
             </Button>
             <DrawerClose asChild>
               <Button variant="ghost" className="w-full">Cancelar</Button>
+            </DrawerClose>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Drawer Open Finance / Bancos */}
+      <Drawer open={isBankDrawerOpen} onOpenChange={setIsBankDrawerOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Vincular Nova Conta</DrawerTitle>
+            <DrawerDescription>Conecte seus bancos automaticamente via Open Finance.</DrawerDescription>
+          </DrawerHeader>
+          <div className="p-4 space-y-4">
+            <p className="text-sm text-muted-foreground text-center mb-2">
+              Essa funcionalidade puxará seus boletos automaticamente usando a API do seu banco.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <Card className="bg-muted cursor-pointer hover:border-primary transition-all border-2 border-transparent">
+                <CardContent className="p-4 flex flex-col items-center justify-center gap-2">
+                  <div className="w-12 h-12 bg-[#8A05BE] rounded-full"></div>
+                  <span className="font-semibold text-sm">Nubank</span>
+                </CardContent>
+              </Card>
+              <Card className="bg-muted cursor-pointer hover:border-primary transition-all border-2 border-transparent">
+                <CardContent className="p-4 flex flex-col items-center justify-center gap-2">
+                  <div className="w-12 h-12 bg-[#FD7A01] rounded-full"></div>
+                  <span className="font-semibold text-sm">Itaú</span>
+                </CardContent>
+              </Card>
+              <Card className="bg-muted cursor-pointer hover:border-primary transition-all border-2 border-transparent">
+                <CardContent className="p-4 flex flex-col items-center justify-center gap-2">
+                  <div className="w-12 h-12 bg-[#CC092F] rounded-full"></div>
+                  <span className="font-semibold text-sm">Bradesco</span>
+                </CardContent>
+              </Card>
+              <Card className="bg-muted cursor-pointer hover:border-primary transition-all border-2 border-transparent">
+                <CardContent className="p-4 flex flex-col items-center justify-center gap-2">
+                  <div className="w-12 h-12 bg-[#1A5F9E] rounded-full"></div>
+                  <span className="font-semibold text-sm">Banco do Brasil</span>
+                </CardContent>
+              </Card>
+            </div>
+            
+            <DrawerClose asChild className="mt-4">
+              <Button variant="outline" className="w-full">Voltar</Button>
             </DrawerClose>
           </div>
         </DrawerContent>

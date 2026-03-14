@@ -20,6 +20,7 @@ export interface Bill {
 interface UserProfile {
   name: string;
   plan: string;
+  customPhotoUrl?: string; // Added to support custom photo upload
 }
 
 interface AppState {
