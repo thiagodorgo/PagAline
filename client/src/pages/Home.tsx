@@ -182,7 +182,17 @@ export default function Home() {
 
   // Drawer states
   const [activeBill, setActiveBill] = useState<Bill | null>(null);
-  const [drawerType, setDrawerType] = useState<'schedule' | 'options' | null>(null);
+  const [drawerType, setDrawerType] = useState<'schedule' | 'options' | 'edit' | null>(null);
+  
+  const [editForm, setEditForm] = useState({
+    description: '',
+    amount: '',
+    dueDate: '',
+    category: ''
+  });
+  
+  const categories = useStore((state) => state.categories);
+  const updateBill = useStore((state) => state.updateBill);
 
   const pendingBills = bills.filter(b => b.status !== 'paid').sort((a, b) => a.dueDate.getTime() - b.dueDate.getTime());
   
@@ -384,11 +394,15 @@ export default function Home() {
               Anexar Boleto / PDF
             </Button>
             <Button variant="outline" className="justify-start text-base py-6" onClick={() => {
-              toast({
-                title: "Em desenvolvimento",
-                description: "Edição de contas estará disponível na próxima versão.",
-              });
-              setDrawerType(null);
+              if (activeBill) {
+                setEditForm({
+                  description: activeBill.description,
+                  amount: activeBill.amount.toString(),
+                  dueDate: new Date(activeBill.dueDate).toISOString().split('T')[0],
+                  category: activeBill.category
+                });
+                setDrawerType('edit');
+              }
             }}>
               <Edit className="mr-3 text-muted-foreground" size={20} />
               Editar Conta
@@ -424,6 +438,80 @@ export default function Home() {
               setDrawerType(null);
             }}>
               Confirmar Agendamento
+            </Button>
+            <DrawerClose asChild>
+              <Button variant="ghost" className="w-full">Cancelar</Button>
+            </DrawerClose>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      <Drawer open={drawerType === 'edit'} onOpenChange={(open) => !open && setDrawerType(null)}>
+        <DrawerContent className="max-h-[90vh]">
+          <DrawerHeader>
+            <DrawerTitle>Editar Conta</DrawerTitle>
+            <DrawerDescription>Atualize os dados da conta abaixo.</DrawerDescription>
+          </DrawerHeader>
+          <div className="p-4 space-y-4 overflow-y-auto">
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Descrição</label>
+              <input 
+                type="text" 
+                value={editForm.description}
+                onChange={e => setEditForm({...editForm, description: e.target.value})}
+                className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium"
+              />
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Valor (R$)</label>
+                <input 
+                  type="number" 
+                  step="0.01"
+                  value={editForm.amount}
+                  onChange={e => setEditForm({...editForm, amount: e.target.value})}
+                  className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-bold text-lg"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-xs font-medium text-muted-foreground">Vencimento</label>
+                <input 
+                  type="date" 
+                  value={editForm.dueDate}
+                  onChange={e => setEditForm({...editForm, dueDate: e.target.value})}
+                  className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium"
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground">Categoria</label>
+              <select 
+                value={editForm.category}
+                onChange={e => setEditForm({...editForm, category: e.target.value})}
+                className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium"
+              >
+                {categories.map((c: string) => <option key={c} value={c}>{c}</option>)}
+              </select>
+            </div>
+
+            <Button className="w-full py-6 text-lg rounded-2xl mt-4" onClick={() => {
+              if (activeBill) {
+                updateBill(activeBill.id, {
+                  description: editForm.description,
+                  amount: parseFloat(editForm.amount) || 0,
+                  dueDate: editForm.dueDate ? new Date(editForm.dueDate) : activeBill.dueDate,
+                  category: editForm.category
+                });
+                toast({
+                  title: "Conta atualizada",
+                  description: "Os dados da conta foram salvos.",
+                });
+                setDrawerType(null);
+              }
+            }}>
+              Salvar Alterações
             </Button>
             <DrawerClose asChild>
               <Button variant="ghost" className="w-full">Cancelar</Button>
