@@ -173,7 +173,7 @@ export const useStore = create<AppState>()(
       
       resetData: () => {
         set({
-          bills: mockBills,
+          bills: [], // Zera completamente a lista de contas, removendo os mockBills iniciais
           categories: initialCategories,
           monthlyGoal: 5000,
           userProfile: {
