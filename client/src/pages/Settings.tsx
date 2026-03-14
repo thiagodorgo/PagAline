@@ -1,4 +1,4 @@
-import { User, Bell, Shield, CircleHelp, LogOut, ChevronRight, Moon, Smartphone, Edit2, Target, Building, Plus, Trash2 } from "lucide-react";
+import { User, Bell, Shield, CircleHelp, LogOut, ChevronRight, Moon, Smartphone, Edit2, Target, Building, Plus, Trash2, RefreshCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -7,13 +7,35 @@ import { useState, useEffect } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from "@/components/ui/drawer";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
+import { isSameMonth } from "date-fns";
 
 export default function Settings() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
-  const [isCategoryDrawerOpen, setIsCategoryDrawerOpen] = useState(false);
-  const categories = useStore(state => state.getCategories());
   const { toast } = useToast();
+  
+  // Store values
+  const categories = useStore(state => state.categories);
+  const userProfile = useStore(state => state.userProfile);
+  const monthlyGoal = useStore(state => state.monthlyGoal);
+  const bills = useStore(state => state.bills);
+  
+  // Store actions
+  const addCategory = useStore(state => state.addCategory);
+  const deleteCategory = useStore(state => state.deleteCategory);
+  const updateUserProfile = useStore(state => state.updateUserProfile);
+  const updateMonthlyGoal = useStore(state => state.updateMonthlyGoal);
+  const resetData = useStore(state => state.resetData);
+
+  // Local state
+  const [isCategoryDrawerOpen, setIsCategoryDrawerOpen] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
+  
+  const [isGoalDrawerOpen, setIsGoalDrawerOpen] = useState(false);
+  const [newGoal, setNewGoal] = useState(monthlyGoal.toString());
+
+  const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
+  const [newName, setNewName] = useState(userProfile.name);
 
   useEffect(() => {
     setMounted(true);
@@ -21,8 +43,53 @@ export default function Settings() {
 
   const isDark = mounted && (theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches));
 
+  const handleAddCategory = () => {
+    if (newCategoryName.trim()) {
+      addCategory(newCategoryName.trim());
+      setNewCategoryName("");
+      toast({ title: "Categoria adicionada", description: `A categoria ${newCategoryName} foi criada.` });
+    }
+  };
+
+  const handleSaveGoal = () => {
+    const goal = parseFloat(newGoal.replace(',', '.'));
+    if (!isNaN(goal) && goal > 0) {
+      updateMonthlyGoal(goal);
+      setIsGoalDrawerOpen(false);
+      toast({ title: "Meta atualizada", description: "Sua meta mensal foi salva." });
+    }
+  };
+
+  const handleSaveProfile = () => {
+    if (newName.trim()) {
+      updateUserProfile({ name: newName.trim() });
+      setIsProfileDrawerOpen(false);
+      toast({ title: "Perfil atualizado", description: "Seu nome foi alterado com sucesso." });
+    }
+  };
+
+  const handleReset = () => {
+    if (window.confirm("Isso apagará todas as suas contas. Tem certeza?")) {
+      resetData();
+      toast({ title: "Dados apagados", description: "O aplicativo foi resetado para o estado inicial." });
+    }
+  };
+
+  // Calculate current month spending
+  const currentMonth = new Date();
+  const monthBills = bills.filter(bill => {
+    const dateToUse = bill.status === 'paid' && bill.paidDate ? bill.paidDate : bill.dueDate;
+    return isSameMonth(dateToUse, currentMonth);
+  });
+  const currentSpending = monthBills.reduce((sum, bill) => sum + bill.amount, 0);
+  const spendingPercentage = Math.min((currentSpending / monthlyGoal) * 100, 100);
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
+  };
+
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col min-h-full pb-24">
       <header className="px-6 pt-12 pb-4 bg-card border-b border-border sticky top-0 z-10">
         <h1 className="text-2xl font-bold tracking-tight">Ajustes</h1>
       </header>
@@ -30,21 +97,24 @@ export default function Settings() {
       <div className="p-4 space-y-6">
         {/* Profile Section */}
         <Card className="border-none shadow-sm bg-primary/5 relative overflow-hidden">
-          <CardContent className="p-4 flex items-center gap-4">
-            <div className="relative group cursor-pointer">
+          <CardContent 
+            className="p-4 flex items-center gap-4 cursor-pointer"
+            onClick={() => setIsProfileDrawerOpen(true)}
+          >
+            <div className="relative group">
               <div className="w-16 h-16 rounded-full bg-primary/20 flex items-center justify-center text-primary overflow-hidden">
-                <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Aline" alt="Profile" className="w-full h-full object-cover" />
+                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${userProfile.name}`} alt="Profile" className="w-full h-full object-cover" />
               </div>
               <div className="absolute inset-0 bg-black/40 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                 <Edit2 className="text-white w-5 h-5" />
               </div>
             </div>
-            <div className="flex-1 flex flex-col justify-center cursor-pointer group">
+            <div className="flex-1 flex flex-col justify-center group">
               <div className="flex items-center gap-2">
-                <h2 className="font-bold text-lg group-hover:text-primary transition-colors">Aline Silva</h2>
-                <Edit2 className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                <h2 className="font-bold text-lg group-hover:text-primary transition-colors">{userProfile.name}</h2>
+                <Edit2 className="w-3 h-3 text-muted-foreground" />
               </div>
-              <p className="text-sm text-muted-foreground">Plano Premium</p>
+              <p className="text-sm text-muted-foreground">{userProfile.plan}</p>
             </div>
           </CardContent>
         </Card>
@@ -65,24 +135,31 @@ export default function Settings() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="font-bold block">R$ 5.000,00</span>
+                  <span className="font-bold block">{formatCurrency(monthlyGoal)}</span>
                 </div>
               </div>
               
               <div className="space-y-2 mt-2">
                 <div className="flex justify-between text-xs font-medium">
-                  <span className="text-muted-foreground">Gasto atual: R$ 4.250,00</span>
-                  <span className="text-warning">85%</span>
+                  <span className="text-muted-foreground">Gasto atual: {formatCurrency(currentSpending)}</span>
+                  <span className={spendingPercentage > 90 ? "text-destructive" : spendingPercentage > 75 ? "text-warning" : "text-primary"}>
+                    {Math.round(spendingPercentage)}%
+                  </span>
                 </div>
                 <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
-                  <div className="h-full bg-warning rounded-full" style={{ width: '85%' }}></div>
+                  <div 
+                    className={`h-full rounded-full ${spendingPercentage > 90 ? 'bg-destructive' : spendingPercentage > 75 ? 'bg-warning' : 'bg-primary'}`} 
+                    style={{ width: `${spendingPercentage}%` }}
+                  ></div>
                 </div>
                 <p className="text-[10px] text-muted-foreground">
-                  Alerta: Você está a R$ 750,00 de atingir sua meta mensal.
+                  {currentSpending < monthlyGoal 
+                    ? `Você ainda pode gastar ${formatCurrency(monthlyGoal - currentSpending)} este mês.`
+                    : "Você ultrapassou sua meta!"}
                 </p>
               </div>
               
-              <Button variant="outline" size="sm" className="w-full mt-2">
+              <Button variant="outline" size="sm" className="w-full mt-2" onClick={() => setIsGoalDrawerOpen(true)}>
                 Ajustar Meta
               </Button>
             </div>
@@ -165,17 +242,19 @@ export default function Settings() {
         </div>
 
         <div className="space-y-4">
-          <h3 className="text-sm font-semibold text-muted-foreground px-2 uppercase tracking-wider">Conta e Suporte</h3>
+          <h3 className="text-sm font-semibold text-muted-foreground px-2 uppercase tracking-wider">Conta e Dados</h3>
           <Card className="overflow-hidden">
             <div className="divide-y divide-border">
-              <div className="flex items-center justify-between p-4 bg-card cursor-pointer hover:bg-muted/50 transition-colors">
+              <div 
+                className="flex items-center justify-between p-4 bg-card cursor-pointer hover:bg-muted/50 transition-colors text-destructive"
+                onClick={handleReset}
+              >
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-muted flex items-center justify-center">
-                    <Shield size={18} />
+                  <div className="w-8 h-8 rounded-full bg-destructive/10 flex items-center justify-center">
+                    <RefreshCcw size={18} />
                   </div>
-                  <span className="font-medium">Segurança e Senha</span>
+                  <span className="font-medium">Apagar todos os dados</span>
                 </div>
-                <ChevronRight className="text-muted-foreground" size={20} />
               </div>
               <div className="flex items-center justify-between p-4 bg-card cursor-pointer hover:bg-muted/50 transition-colors">
                 <div className="flex items-center gap-3">
@@ -190,8 +269,8 @@ export default function Settings() {
           </Card>
         </div>
 
-        <div className="pt-4 pb-12">
-          <button className="flex items-center justify-center gap-2 w-full py-4 text-destructive font-medium bg-destructive/10 rounded-2xl hover:bg-destructive/20 transition-colors">
+        <div className="pt-4">
+          <button className="flex items-center justify-center gap-2 w-full py-4 text-muted-foreground font-medium bg-muted rounded-2xl hover:bg-muted/80 transition-colors">
             <LogOut size={20} />
             Sair da conta
           </button>
@@ -210,16 +289,24 @@ export default function Settings() {
               <input 
                 type="text" 
                 placeholder="Nova categoria..." 
+                value={newCategoryName}
+                onChange={(e) => setNewCategoryName(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleAddCategory()}
                 className="flex-1 p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium"
               />
-              <Button className="rounded-xl h-auto px-6">Adicionar</Button>
+              <Button onClick={handleAddCategory} className="rounded-xl h-auto px-6" disabled={!newCategoryName.trim()}>Adicionar</Button>
             </div>
             
             <div className="space-y-2">
               {categories.map((cat, index) => (
                 <div key={index} className="flex items-center justify-between p-3 bg-muted/50 rounded-xl">
                   <span className="font-medium">{cat}</span>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10">
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => deleteCategory(cat)}
+                    className="h-8 w-8 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
+                  >
                     <Trash2 size={16} />
                   </Button>
                 </div>
@@ -232,6 +319,66 @@ export default function Settings() {
           </div>
         </DrawerContent>
       </Drawer>
+
+      {/* Drawer Perfil */}
+      <Drawer open={isProfileDrawerOpen} onOpenChange={setIsProfileDrawerOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Editar Perfil</DrawerTitle>
+            <DrawerDescription>Altere suas informações pessoais.</DrawerDescription>
+          </DrawerHeader>
+          <div className="p-4 space-y-4">
+            <div className="flex justify-center mb-4">
+              <div className="w-24 h-24 rounded-full bg-primary/20 flex items-center justify-center text-primary overflow-hidden border-2 border-primary">
+                <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${newName || 'Aline'}`} alt="Profile" className="w-full h-full object-cover" />
+              </div>
+            </div>
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Nome de Usuário</label>
+              <input 
+                type="text" 
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-medium"
+              />
+            </div>
+            <Button className="w-full py-6 text-lg rounded-2xl" onClick={handleSaveProfile}>
+              Salvar Alterações
+            </Button>
+            <DrawerClose asChild>
+              <Button variant="ghost" className="w-full">Cancelar</Button>
+            </DrawerClose>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
+      {/* Drawer Meta Mensal */}
+      <Drawer open={isGoalDrawerOpen} onOpenChange={setIsGoalDrawerOpen}>
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Ajustar Meta Mensal</DrawerTitle>
+            <DrawerDescription>Defina um limite de gastos para receber alertas.</DrawerDescription>
+          </DrawerHeader>
+          <div className="p-4 space-y-4">
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Valor da Meta (R$)</label>
+              <input 
+                type="number" 
+                value={newGoal}
+                onChange={(e) => setNewGoal(e.target.value)}
+                className="w-full p-3 bg-muted rounded-xl border-none focus:ring-2 focus:ring-primary/50 font-bold text-lg"
+              />
+            </div>
+            <Button className="w-full py-6 text-lg rounded-2xl" onClick={handleSaveGoal}>
+              Salvar Meta
+            </Button>
+            <DrawerClose asChild>
+              <Button variant="ghost" className="w-full">Cancelar</Button>
+            </DrawerClose>
+          </div>
+        </DrawerContent>
+      </Drawer>
+
     </div>
   );
 }

@@ -12,6 +12,7 @@ const COLORS = ['#8b5cf6', '#ec4899', '#14b8a6', '#f59e0b', '#3b82f6', '#ef4444'
 
 export default function Reports() {
   const bills = useStore((state) => state.bills);
+  const monthlyGoal = useStore((state) => state.monthlyGoal);
   const [currentMonth, setCurrentMonth] = useState(new Date());
 
   const prevMonth = () => {
@@ -32,8 +33,6 @@ export default function Reports() {
   const paidAmount = monthBills.filter(b => b.status === 'paid').reduce((sum, bill) => sum + bill.amount, 0);
   const pendingAmount = totalAmount - paidAmount;
   
-  // Mock monthly goal for dashboard
-  const monthlyGoal = 5000;
   const goalPercentage = Math.min((totalAmount / monthlyGoal) * 100, 100);
 
   // Prepare data for Pie Chart (Expenses by Category)
@@ -115,7 +114,7 @@ export default function Reports() {
                 ></div>
               </div>
               <p className="text-[10px] text-primary-foreground/70 font-medium">
-                {goalPercentage > 100 
+                {goalPercentage >= 100 
                   ? "Você ultrapassou sua meta mensal!" 
                   : `Você usou ${Math.round(goalPercentage)}% da sua meta`}
               </p>

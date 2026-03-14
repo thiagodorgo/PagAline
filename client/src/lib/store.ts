@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { v4 as uuidv4 } from 'uuid';
-import { addDays, subDays, startOfMonth, format } from 'date-fns';
+import { addDays, subDays } from 'date-fns';
 
 export type BillStatus = 'pending' | 'paid' | 'overdue';
 
@@ -17,14 +17,31 @@ export interface Bill {
   createdAt: Date;
 }
 
+interface UserProfile {
+  name: string;
+  plan: string;
+}
+
 interface AppState {
   bills: Bill[];
+  categories: string[];
+  userProfile: UserProfile;
+  monthlyGoal: number;
+  
   addBill: (bill: Omit<Bill, 'id' | 'createdAt'>) => void;
   updateBill: (id: string, bill: Partial<Bill>) => void;
   markAsPaid: (id: string) => void;
   markMultipleAsPaid: (ids: string[]) => void;
   deleteBill: (id: string) => void;
+  
   getCategories: () => string[];
+  addCategory: (category: string) => void;
+  deleteCategory: (category: string) => void;
+  
+  updateUserProfile: (profile: Partial<UserProfile>) => void;
+  updateMonthlyGoal: (goal: number) => void;
+  
+  resetData: () => void;
 }
 
 const initialCategories = ['Casa', 'Transporte', 'Educação', 'Saúde', 'Lazer', 'Impostos', 'Outros'];
@@ -80,6 +97,12 @@ const mockBills: Bill[] = [
 
 export const useStore = create<AppState>((set, get) => ({
   bills: mockBills,
+  categories: initialCategories,
+  userProfile: {
+    name: 'Aline Silva',
+    plan: 'Plano Premium'
+  },
+  monthlyGoal: 5000,
   
   addBill: (billData) => {
     const newBill: Bill = {
@@ -120,5 +143,34 @@ export const useStore = create<AppState>((set, get) => ({
     }));
   },
 
-  getCategories: () => initialCategories,
+  getCategories: () => get().categories,
+  
+  addCategory: (category) => {
+    if (!get().categories.includes(category)) {
+      set((state) => ({ categories: [...state.categories, category] }));
+    }
+  },
+  
+  deleteCategory: (category) => {
+    set((state) => ({ 
+      categories: state.categories.filter(c => c !== category) 
+    }));
+  },
+  
+  updateUserProfile: (profile) => {
+    set((state) => ({
+      userProfile: { ...state.userProfile, ...profile }
+    }));
+  },
+  
+  updateMonthlyGoal: (goal) => {
+    set({ monthlyGoal: goal });
+  },
+  
+  resetData: () => {
+    set({
+      bills: [],
+      monthlyGoal: 5000,
+    });
+  }
 }));
