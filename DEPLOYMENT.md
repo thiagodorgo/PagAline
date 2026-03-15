@@ -7,6 +7,7 @@ Arquivos principais:
 - `apprunner.yaml`
 - `.env.example`
 - `docs/aws-apprunner-rds.md`
+- `scripts/aws/cloudshell-provision-pagaline.sh`
 
 Resumo:
 
