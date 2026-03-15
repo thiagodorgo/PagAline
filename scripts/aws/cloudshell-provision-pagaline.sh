@@ -48,6 +48,14 @@ APP_PREFIX="$(printf '%s' "$APP_PREFIX_RAW" | tr '[:upper:]' '[:lower:]' | sed -
 [[ ${#APP_PREFIX} -ge 4 ]] || fail "Project prefix must resolve to at least 4 characters."
 
 DEFAULT_REPO_URL="https://github.com/REPLACE_ME/PagAline"
+if command -v git >/dev/null 2>&1; then
+  GIT_REMOTE_URL="$(git config --get remote.origin.url 2>/dev/null || true)"
+  if [[ "$GIT_REMOTE_URL" =~ ^git@github\.com:(.+)\.git$ ]]; then
+    DEFAULT_REPO_URL="https://github.com/${BASH_REMATCH[1]}"
+  elif [[ "$GIT_REMOTE_URL" =~ ^https://github\.com/.+(\.git)?$ ]]; then
+    DEFAULT_REPO_URL="${GIT_REMOTE_URL%.git}"
+  fi
+fi
 GITHUB_REPOSITORY_URL="$(prompt_default 'GitHub repository URL' "${GITHUB_REPOSITORY_URL:-$DEFAULT_REPO_URL}")"
 [[ "$GITHUB_REPOSITORY_URL" == https://github.com/* ]] || fail "GitHub repository URL must start with https://github.com/"
 GITHUB_BRANCH="$(prompt_default 'GitHub branch' "${GITHUB_BRANCH:-main}")"
@@ -79,6 +87,10 @@ read -r -s -p "Confirm database password: " DB_PASSWORD_CONFIRM
 printf '\n'
 [[ "$DB_PASSWORD" == "$DB_PASSWORD_CONFIRM" ]] || fail "Passwords do not match."
 [[ -n "$DB_PASSWORD" ]] || fail "Database password cannot be empty."
+[[ ${#DB_PASSWORD} -ge 8 && ${#DB_PASSWORD} -le 128 ]] || fail "RDS PostgreSQL password must contain between 8 and 128 characters."
+[[ "$DB_PASSWORD" != *"/"* ]] || fail "RDS PostgreSQL password cannot contain '/'."
+[[ "$DB_PASSWORD" != *"\""* ]] || fail "RDS PostgreSQL password cannot contain '\"'."
+[[ "$DB_PASSWORD" != *"@"* ]] || fail "RDS PostgreSQL password cannot contain '@'."
 
 SERVICE_NAME="${SERVICE_NAME:-$APP_PREFIX}"
 CONNECTION_NAME="${CONNECTION_NAME:-${APP_PREFIX}-github}"
