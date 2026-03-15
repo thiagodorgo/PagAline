@@ -17,6 +17,7 @@ Para publicar o projeto como ele está hoje:
 
 - `apprunner.yaml`: build e start do serviço no App Runner
 - `.env.example`: referência local das variáveis mínimas
+- `scripts/aws/cloudshell-provision-pagaline.sh`: provisionamento assistido via AWS CloudShell
 
 ## Variáveis e segredos
 
