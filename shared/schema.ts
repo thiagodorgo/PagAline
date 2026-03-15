@@ -29,8 +29,14 @@ export const settings = pgTable("settings", {
   monthlyGoal: doublePrecision("monthly_goal").notNull().default(5000),
 });
 
-export const insertBillSchema = createInsertSchema(bills).omit({ id: true, createdAt: true });
-export const updateBillSchema = createInsertSchema(bills).omit({ id: true, createdAt: true }).partial();
+const billSchemaRefinements = {
+  dueDate: () => z.coerce.date(),
+  paidDate: () => z.coerce.date(),
+  createdAt: () => z.coerce.date(),
+};
+
+export const insertBillSchema = createInsertSchema(bills, billSchemaRefinements).omit({ id: true, createdAt: true });
+export const updateBillSchema = createInsertSchema(bills, billSchemaRefinements).omit({ id: true, createdAt: true }).partial();
 
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
 export const updateSettingsSchema = createInsertSchema(settings).omit({ id: true }).partial();
