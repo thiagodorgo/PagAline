@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
+import { createOcrUploadTarget, extractBillFromUploadedDocument } from "./ocr";
 import { insertBillSchema, updateBillSchema, insertCategorySchema, updateSettingsSchema } from "@shared/schema";
 import { z } from "zod";
 
@@ -45,6 +46,26 @@ export async function registerRoutes(
     const bill = await storage.markBillPaid(req.params.id);
     if (!bill) return res.status(404).json({ message: "Conta não encontrada" });
     res.json(bill);
+  });
+
+  app.post("/api/ocr/presign", async (req, res) => {
+    const schema = z.object({
+      fileName: z.string().min(1),
+      contentType: z.string().min(1),
+      fileSize: z.number().positive().optional(),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Dados inválidos", errors: parsed.error.flatten() });
+    const target = await createOcrUploadTarget(parsed.data);
+    res.json(target);
+  });
+
+  app.post("/api/ocr/extract", async (req, res) => {
+    const schema = z.object({ key: z.string().min(1) });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: "Dados inválidos", errors: parsed.error.flatten() });
+    const suggestion = await extractBillFromUploadedDocument(parsed.data.key);
+    res.json(suggestion);
   });
 
   app.post("/api/bills/pay-multiple", async (req, res) => {

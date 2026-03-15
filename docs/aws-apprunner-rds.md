@@ -18,6 +18,7 @@ Para publicar o projeto como ele está hoje:
 - `apprunner.yaml`: build e start do serviço no App Runner
 - `.env.example`: referência local das variáveis mínimas
 - `scripts/aws/cloudshell-provision-pagaline.sh`: provisionamento assistido via AWS CloudShell
+- `scripts/aws/cloudshell-enable-ocr.sh`: habilita bucket OCR, permissões IAM e variáveis do App Runner
 
 ## Variáveis e segredos
 
@@ -25,6 +26,9 @@ Defina no App Runner em runtime:
 
 - `NODE_ENV=production`
 - `DATABASE_URL` via AWS Secrets Manager ou SSM Parameter Store
+- `AWS_REGION=<região do serviço>`
+- `AWS_DEFAULT_REGION=<região do serviço>`
+- `OCR_BUCKET_NAME=<bucket privado para upload OCR>`
 
 Formato esperado de `DATABASE_URL`:
 
@@ -58,3 +62,24 @@ Se você quiser executar `npm run db:push` a partir da sua máquina na primeira 
 4. Manter o App Runner acessando o banco pela VPC privada, usando `VPC Connector` e uma regra adicional no security group do RDS permitindo a porta `5432` a partir do security group do App Runner.
 
 Depois que o schema estiver criado, você pode manter o acesso público restrito ao seu IP ou endurecer isso depois com um fluxo de migração executado de dentro da AWS.
+
+## OCR com AWS
+
+O fluxo implementado no repositório usa:
+
+- `Amazon S3` para receber a foto ou PDF via URL assinada
+- `Amazon Textract AnalyzeExpense` para extrair descrição, valor e vencimento
+- `App Runner instance role` para acessar `S3` e `Textract`
+
+Para habilitar no ambiente já criado, execute no CloudShell:
+
+```bash
+bash scripts/aws/cloudshell-enable-ocr.sh
+```
+
+O script:
+
+1. Cria ou reaproveita um bucket privado para OCR.
+2. Aplica `S3 CORS` para o domínio do App Runner e localhost.
+3. Adiciona permissões `s3:*Object`, `s3:ListBucket` e `textract:AnalyzeExpense` no role do App Runner.
+4. Atualiza o serviço com `OCR_BUCKET_NAME`, `AWS_REGION` e `AWS_DEFAULT_REGION`.

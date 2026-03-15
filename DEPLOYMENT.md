@@ -8,6 +8,7 @@ Arquivos principais:
 - `.env.example`
 - `docs/aws-apprunner-rds.md`
 - `scripts/aws/cloudshell-provision-pagaline.sh`
+- `scripts/aws/cloudshell-enable-ocr.sh`
 
 Resumo:
 
@@ -16,3 +17,4 @@ Resumo:
 3. Crie o serviço no App Runner conectado ao GitHub.
 4. Aplique o `VPC Connector` para acessar o banco privado.
 5. Execute `npm run db:push` uma vez contra o banco de produção.
+6. Para OCR com AWS, crie o bucket e permissões com `scripts/aws/cloudshell-enable-ocr.sh`.
