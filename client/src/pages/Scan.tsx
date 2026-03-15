@@ -96,6 +96,7 @@ export default function Scan() {
   const [ocrSummary, setOcrSummary] = useState("");
 
   const handleSave = async () => {
+    try {
       const amount = parseCurrencyInput(formData.amount);
 
       await addBill({
