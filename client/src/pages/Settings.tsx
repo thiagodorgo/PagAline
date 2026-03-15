@@ -11,6 +11,29 @@ import { isSameMonth, parseISO } from "date-fns";
 
 const toDate = (d: string | Date) => (typeof d === 'string' ? parseISO(d) : d);
 
+async function compressImageToDataUrl(file: File) {
+  const imageBitmap = await createImageBitmap(file);
+  const maxSize = 512;
+  const scale = Math.min(1, maxSize / Math.max(imageBitmap.width, imageBitmap.height));
+  const width = Math.max(1, Math.round(imageBitmap.width * scale));
+  const height = Math.max(1, Math.round(imageBitmap.height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+
+  const context = canvas.getContext("2d");
+  if (!context) {
+    throw new Error("Não foi possível processar a imagem selecionada.");
+  }
+
+  context.drawImage(imageBitmap, 0, 0, width, height);
+
+  const dataUrl = canvas.toDataURL("image/jpeg", 0.82);
+  imageBitmap.close();
+  return dataUrl;
+}
+
 export default function Settings() {
   const { theme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
@@ -58,46 +81,84 @@ export default function Settings() {
 
   const handleAddCategory = async () => {
     if (newCategoryName.trim()) {
-      await addCategory(newCategoryName.trim());
-      setNewCategoryName("");
-      toast({ title: "Categoria adicionada", description: `A categoria ${newCategoryName} foi criada.` });
+      try {
+        await addCategory(newCategoryName.trim());
+        setNewCategoryName("");
+        toast({ title: "Categoria adicionada", description: `A categoria ${newCategoryName} foi criada.` });
+      } catch (error) {
+        toast({
+          title: "Falha ao adicionar categoria",
+          description: error instanceof Error ? error.message : "Não foi possível criar a categoria.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
   const handleSaveGoal = async () => {
     const goal = parseFloat(newGoal.replace(',', '.'));
     if (!isNaN(goal) && goal > 0) {
-      await updateSettings({ monthlyGoal: goal });
-      setIsGoalDrawerOpen(false);
-      toast({ title: "Meta atualizada", description: "Sua meta mensal foi salva." });
+      try {
+        await updateSettings({ monthlyGoal: goal });
+        setIsGoalDrawerOpen(false);
+        toast({ title: "Meta atualizada", description: "Sua meta mensal foi salva." });
+      } catch (error) {
+        toast({
+          title: "Falha ao salvar meta",
+          description: error instanceof Error ? error.message : "Não foi possível salvar a meta.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
   const handleSaveProfile = async () => {
     if (newName.trim()) {
-      await updateSettings({ userName: newName.trim() });
-      setIsProfileDrawerOpen(false);
-      toast({ title: "Perfil atualizado", description: "Seus dados foram alterados com sucesso." });
+      try {
+        await updateSettings({ userName: newName.trim() });
+        setIsProfileDrawerOpen(false);
+        toast({ title: "Perfil atualizado", description: "Seus dados foram alterados com sucesso." });
+      } catch (error) {
+        toast({
+          title: "Falha ao salvar perfil",
+          description: error instanceof Error ? error.message : "Não foi possível atualizar o perfil.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
   const handleReset = async () => {
     if (window.confirm("Isso apagará todas as suas contas. Tem certeza?")) {
-      await resetData();
-      toast({ title: "Dados apagados", description: "O aplicativo foi resetado para o estado inicial." });
+      try {
+        await resetData();
+        toast({ title: "Dados apagados", description: "O aplicativo foi resetado para o estado inicial." });
+      } catch (error) {
+        toast({
+          title: "Falha ao resetar dados",
+          description: error instanceof Error ? error.message : "Não foi possível limpar os dados.",
+          variant: "destructive",
+        });
+      }
     }
   };
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = async () => {
-        const base64String = reader.result as string;
-        await updateSettings({ customPhotoUrl: base64String });
+      try {
+        const compressed = await compressImageToDataUrl(file);
+        await updateSettings({ customPhotoUrl: compressed });
         toast({ title: "Foto atualizada", description: "Sua foto de perfil foi salva com sucesso." });
-      };
-      reader.readAsDataURL(file);
+      } catch (error) {
+        toast({
+          title: "Falha ao atualizar foto",
+          description: error instanceof Error ? error.message : "Não foi possível salvar a foto.",
+          variant: "destructive",
+        });
+      } finally {
+        e.target.value = "";
+      }
     }
   };
 

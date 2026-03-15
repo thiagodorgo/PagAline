@@ -96,29 +96,36 @@ export default function Scan() {
   const [ocrSummary, setOcrSummary] = useState("");
 
   const handleSave = async () => {
-    const amount = parseCurrencyInput(formData.amount);
+      const amount = parseCurrencyInput(formData.amount);
 
-    await addBill({
-      description: formData.description || "Nova Conta",
-      amount,
-      dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : new Date().toISOString(),
-      category: formData.category,
-      status: "pending",
-      notes: formData.notes || undefined,
-      imageUrl: ocrDocument?.sourceUri,
-    });
+      await addBill({
+        description: formData.description || "Nova Conta",
+        amount,
+        dueDate: formData.dueDate ? new Date(formData.dueDate).toISOString() : new Date().toISOString(),
+        category: formData.category,
+        status: "pending",
+        notes: formData.notes || undefined,
+        imageUrl: ocrDocument?.sourceUri,
+      });
 
-    if (amount > 1000) {
+      if (amount > 1000) {
+        toast({
+          title: "Atenção à sua meta!",
+          description: "Esta conta consome uma parte significativa da sua meta mensal.",
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Conta salva", description: "A conta foi adicionada com sucesso à sua lista." });
+      }
+
+      setLocation("/");
+    } catch (error) {
       toast({
-        title: "Atenção à sua meta!",
-        description: "Esta conta consome uma parte significativa da sua meta mensal.",
+        title: "Falha ao salvar conta",
+        description: error instanceof Error ? error.message : "Não foi possível salvar a conta.",
         variant: "destructive",
       });
-    } else {
-      toast({ title: "Conta salva", description: "A conta foi adicionada com sucesso à sua lista." });
     }
-
-    setLocation("/");
   };
 
   const applyOcrSuggestion = (suggestion: OcrSuggestion, fileName: string) => {
