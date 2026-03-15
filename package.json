@@ -1,8 +1,12 @@
 {
-  "name": "rest-express",
+  "name": "pagaline",
   "version": "1.0.0",
+  "description": "PagAline web app with React, Vite, Express, and PostgreSQL.",
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=20 <23"
+  },
   "scripts": {
     "dev:client": "vite dev --port 5000",
     "dev": "NODE_ENV=development tsx server/index.ts",

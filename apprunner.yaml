@@ -1,0 +1,23 @@
+version: 1.0
+runtime: nodejs22
+
+build:
+  commands:
+    pre-build:
+      - npm ci
+    build:
+      - npm run build
+
+run:
+  runtime-version: 22
+  command: npm start
+  network:
+    port: 8080
+  env:
+    - name: NODE_ENV
+      value: production
+  # Configure DATABASE_URL as a runtime secret in the App Runner console.
+  # Example with Secrets Manager:
+  # secrets:
+  #   - name: DATABASE_URL
+  #     value-from: arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:pagaline/prod/database-url
