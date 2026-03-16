@@ -16,8 +16,6 @@ run:
   env:
     - name: NODE_ENV
       value: production
-  # Configure DATABASE_URL as a runtime secret in the App Runner console.
-  # Example with Secrets Manager:
-  # secrets:
-  #   - name: DATABASE_URL
-  #     value-from: arn:aws:secretsmanager:REGION:ACCOUNT_ID:secret:pagaline/prod/database-url
+  secrets:
+    - name: DATABASE_URL
+      value-from: arn:aws:secretsmanager:sa-east-1:123456789012:secret:pagaline/prod/database-url
