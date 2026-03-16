@@ -24,7 +24,7 @@ install -m 0644 deploy/nginx/pagaline.conf /etc/nginx/conf.d/pagaline.conf
 rm -f /etc/nginx/conf.d/default.conf
 
 sudo -u ec2-user bash -lc 'cd /srv/pagaline/current && npm ci'
-sudo -u ec2-user bash -lc 'cd /srv/pagaline/current && npm run build'
+sudo -u ec2-user bash -lc 'set -a && . /etc/pagaline.env && set +a && cd /srv/pagaline/current && npm run build'
 sudo -u ec2-user bash -lc 'set -a && . /etc/pagaline.env && set +a && cd /srv/pagaline/current && npm run db:push'
 
 systemctl daemon-reload
