@@ -8,7 +8,7 @@ import NotFound from "@/pages/not-found";
 import MobileLayout from "./components/layout/MobileLayout";
 import Home from "./pages/Home";
 import Bills from "./pages/Bills";
-import Scan from "./pages/scan";
+import Scan from "./pages/Scan";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 
