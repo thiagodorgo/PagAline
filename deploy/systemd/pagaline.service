@@ -1,0 +1,18 @@
+[Unit]
+Description=Pagaline web application
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+Group=ec2-user
+WorkingDirectory=/srv/pagaline/current
+EnvironmentFile=/etc/pagaline.env
+ExecStart=/usr/bin/npm start
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target
