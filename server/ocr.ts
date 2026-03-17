@@ -126,8 +126,9 @@ function inferCategory(description?: string) {
   if (!text) return "Outros";
   if (/(energia|eletric|luz|água|agua|gás|gas|condom|aluguel|internet|telefone|celular)/.test(text)) return "Casa";
   if (/(uber|99 |taxi|combust|transporte|metrô|metro|ônibus|onibus|pedágio|pedagio)/.test(text)) return "Transporte";
-  if (/(escola|faculdade|curso|mensalidade|educa)/.test(text)) return "Educação";
+  if (/(escola|faculdade|curso|mensalidade|educa|cebraspe|concurso|vestibular|enem|inscri[cç][aã]o|prova)/.test(text)) return "Educação";
   if (/(farm|hospital|consulta|cl[ií]nica|clinica|sa[úu]de|plano)/.test(text)) return "Saúde";
+  if (/(ingresso|show|cinema|festival|evento|teatro|viagem|hotel|lazer)/.test(text)) return "Lazer";
   if (/(iptu|ipva|imposto|darf|tributo|receita)/.test(text)) return "Impostos";
   return "Outros";
 }
@@ -300,6 +301,25 @@ function extractBoletoDueDate(rawText: string) {
     );
 }
 
+function extractBoletoEvent(rawText: string) {
+  return matchRawTextValue(
+    rawText,
+    /evento:\s*(.+)/i,
+    /referente a:\s*(.+)/i,
+    /descri[cç][aã]o:\s*(.+)/i,
+  );
+}
+
+function buildDescription(baseDescription?: string, eventName?: string) {
+  const description = cleanEntityName(baseDescription) ?? "Conta OCR";
+  const event = normalizeText(eventName);
+
+  if (!event) return description;
+  if (description.toLowerCase().includes(event.toLowerCase())) return description;
+
+  return `${description} - ${event}`;
+}
+
 function buildRawTextFromBlocks(blocks: Block[] | undefined) {
   if (!blocks?.length) return "";
 
@@ -354,19 +374,22 @@ function extractSuggestion(expenseDocument?: ExpenseDocument, sourceUri?: string
   const rawDescription = rawText ? extractBoletoDescription(rawText) : undefined;
   const rawAmountText = rawText ? extractBoletoAmount(rawText) : undefined;
   const rawDueDateText = rawText ? extractBoletoDueDate(rawText) : undefined;
+  const rawEvent = rawText ? extractBoletoEvent(rawText) : undefined;
 
-  const normalizedDescription =
+  const baseDescription =
     summaryDescription === "Conta OCR"
       ? rawDescription ?? summaryDescription
       : summaryDescription;
+  const normalizedDescription = buildDescription(baseDescription, rawEvent);
   const amount = parseAmount(summaryAmountText) ?? parseAmount(rawAmountText);
   const dueDate = parseDate(summaryDueDateText) ?? parseDate(rawDueDateText);
+  const category = inferCategory([normalizedDescription, rawText].filter(Boolean).join(" "));
 
   const suggestion = {
     description: normalizedDescription,
     amount,
     dueDate,
-    category: inferCategory(normalizedDescription),
+    category,
     notes: rawText || undefined,
     imageUrl: sourceUri ?? "",
     sourceUri: sourceUri ?? "",

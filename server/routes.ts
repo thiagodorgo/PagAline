@@ -1,4 +1,4 @@
-import type { Express, Request } from "express";
+import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
 import { createOcrUploadTarget, extractBillFromUploadedDocument } from "./ocr";
@@ -13,15 +13,6 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import { clearAuthCookie, normalizeUsername, requireAdmin, requireAuth, sanitizeUser, setAuthCookie, toAuthUser, verifyPassword } from "./auth";
-
-function destroySession(req: Request) {
-  return new Promise<void>((resolve, reject) => {
-    req.session.destroy((error) => {
-      if (error) reject(error);
-      else resolve();
-    });
-  });
-}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -52,7 +43,6 @@ export async function registerRoutes(
   });
 
   app.post("/api/logout", async (req, res) => {
-    await destroySession(req);
     clearAuthCookie(res);
     res.status(204).send();
   });
