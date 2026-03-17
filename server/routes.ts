@@ -1,4 +1,4 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
 import { createOcrUploadTarget, extractBillFromUploadedDocument } from "./ocr";
@@ -13,6 +13,33 @@ import {
 } from "@shared/schema";
 import { z } from "zod";
 import { normalizeUsername, requireAdmin, requireAuth, sanitizeUser, verifyPassword } from "./auth";
+
+function regenerateSession(req: Request) {
+  return new Promise<void>((resolve, reject) => {
+    req.session.regenerate((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
+function saveSession(req: Request) {
+  return new Promise<void>((resolve, reject) => {
+    req.session.save((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
+
+function destroySession(req: Request) {
+  return new Promise<void>((resolve, reject) => {
+    req.session.destroy((error) => {
+      if (error) reject(error);
+      else resolve();
+    });
+  });
+}
 
 export async function registerRoutes(
   httpServer: Server,
@@ -37,14 +64,15 @@ export async function registerRoutes(
     }
 
     const safeUser = sanitizeUser(user);
+    await regenerateSession(req);
     req.session.user = safeUser;
+    await saveSession(req);
     return res.json(safeUser);
   });
 
-  app.post("/api/logout", (req, res) => {
-    req.session.destroy(() => {
-      res.status(204).send();
-    });
+  app.post("/api/logout", async (req, res) => {
+    await destroySession(req);
+    res.status(204).send();
   });
 
   app.get("/api/me", (req, res) => {
@@ -68,7 +96,9 @@ export async function registerRoutes(
     }
 
     const safeUser = sanitizeUser(user);
+    await regenerateSession(req);
     req.session.user = safeUser;
+    await saveSession(req);
     return res.json(safeUser);
   });
 
@@ -85,6 +115,7 @@ export async function registerRoutes(
 
     const safeUser = sanitizeUser(updated);
     req.session.user = safeUser;
+    await saveSession(req);
     return res.json(safeUser);
   });
 

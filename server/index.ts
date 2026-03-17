@@ -47,6 +47,7 @@ app.use(
       tableName: "user_sessions",
       createTableIfMissing: true,
     }),
+    proxy: true,
     name: "pagaline.sid",
     secret: process.env.SESSION_SECRET || process.env.PGPASSWORD || "pagaline-session-secret",
     resave: false,
@@ -55,7 +56,7 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      secure: "auto",
       maxAge: 1000 * 60 * 60 * 24 * 7,
     },
   }),
