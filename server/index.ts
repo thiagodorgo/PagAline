@@ -10,6 +10,10 @@ const app = express();
 const httpServer = createServer(app);
 const PgStore = connectPgSimple(session);
 
+function shouldUseSecureCookie() {
+  return process.env.COOKIE_SECURE === "true";
+}
+
 declare module "express-session" {
   interface SessionData {
     user?: {
@@ -56,7 +60,7 @@ app.use(
     cookie: {
       httpOnly: true,
       sameSite: "lax",
-      secure: "auto",
+      secure: shouldUseSecureCookie(),
       maxAge: 1000 * 60 * 60 * 24 * 7,
     },
   }),

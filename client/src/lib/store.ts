@@ -79,7 +79,12 @@ async function api(url: string, options?: RequestInit) {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
-    throw new Error(text);
+    try {
+      const payload = JSON.parse(text);
+      throw new Error(payload?.message || res.statusText);
+    } catch {
+      throw new Error(text || res.statusText);
+    }
   }
   if (res.status === 204) return null;
   return res.json();
@@ -103,7 +108,12 @@ export const useStore = create<AppState>()((set, get) => ({
 
     if (!res.ok) {
       const text = await res.text().catch(() => res.statusText);
-      throw new Error(text);
+      try {
+        const payload = JSON.parse(text);
+        throw new Error(payload?.message || res.statusText);
+      } catch {
+        throw new Error(text || res.statusText);
+      }
     }
 
     const currentUser = await res.json();
