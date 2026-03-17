@@ -124,6 +124,10 @@ function fieldValue(field?: ExpenseField) {
   return normalizeText(field?.ValueDetection?.Text);
 }
 
+function fieldLabel(field?: ExpenseField) {
+  return normalizeText(field?.LabelDetection?.Text);
+}
+
 function findFieldValue(summaryFields: ExpenseField[] | undefined, ...types: string[]) {
   if (!summaryFields?.length) return undefined;
 
@@ -139,13 +143,83 @@ function findFieldValue(summaryFields: ExpenseField[] | undefined, ...types: str
   return undefined;
 }
 
+function findFieldByLabel(summaryFields: ExpenseField[] | undefined, ...patterns: RegExp[]) {
+  if (!summaryFields?.length) return undefined;
+
+  for (const field of summaryFields) {
+    const label = fieldLabel(field)?.toLowerCase();
+    const value = fieldValue(field);
+    if (!label || !value) continue;
+
+    if (patterns.some((pattern) => pattern.test(label))) {
+      return value;
+    }
+  }
+
+  return undefined;
+}
+
+function cleanEntityName(value?: string) {
+  const normalized = normalizeText(value);
+  if (!normalized) return undefined;
+
+  return normalized
+    .replace(/\s+\/\s*\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}.*/i, "")
+    .replace(/\s+\/\s*\d{11,14}.*/i, "")
+    .trim();
+}
+
+function matchRawTextValue(rawText: string, ...patterns: RegExp[]) {
+  for (const pattern of patterns) {
+    const match = rawText.match(pattern);
+    const value = normalizeText(match?.[1]);
+    if (value) return value;
+  }
+
+  return undefined;
+}
+
+function extractBoletoDescription(rawText: string) {
+  return cleanEntityName(
+    matchRawTextValue(
+      rawText,
+      /benefici[aá]rio:\s*(.+)/i,
+      /nome do benefici[aá]rio.*?:\s*(.+)/i,
+      /cedente:\s*(.+)/i,
+      /fornecedor:\s*(.+)/i,
+      /recebedor:\s*(.+)/i,
+    ),
+  );
+}
+
+function extractBoletoAmount(rawText: string) {
+  return matchRawTextValue(
+    rawText,
+    /valor do documento:\s*([0-9.,]+)/i,
+    /valor cobrado:\s*([0-9.,]+)/i,
+    /valor pago:\s*([0-9.,]+)/i,
+    /total:\s*([0-9.,]+)/i,
+  );
+}
+
+function extractBoletoDueDate(rawText: string) {
+  return matchRawTextValue(
+    rawText,
+    /data de vencimento:\s*([0-9]{2}[\/.-][0-9]{2}[\/.-][0-9]{2,4})/i,
+    /vencimento:\s*([0-9]{2}[\/.-][0-9]{2}[\/.-][0-9]{2,4})/i,
+  );
+}
+
 function buildRawText(expenseDocument?: ExpenseDocument) {
   if (!expenseDocument) return "";
 
   const lines = new Set<string>();
   for (const field of expenseDocument.SummaryFields ?? []) {
     const type = normalizeText(field.Type?.Text);
+    const label = fieldLabel(field);
     const value = fieldValue(field);
+
+    if (label && value) lines.add(`${label}: ${value}`);
     if (type && value) lines.add(`${type}: ${value}`);
   }
 
@@ -154,28 +228,56 @@ function buildRawText(expenseDocument?: ExpenseDocument) {
 
 function extractSuggestion(expenseDocument?: ExpenseDocument, sourceUri?: string, key?: string): OcrBillSuggestion {
   const summaryFields = expenseDocument?.SummaryFields ?? [];
-  const description =
+  const rawText = buildRawText(expenseDocument);
+
+  const summaryDescription =
+    cleanEntityName(findFieldByLabel(summaryFields, /benefici[aá]rio/, /fornecedor/, /recebedor/, /cedente/)) ??
+    cleanEntityName(findFieldValue(summaryFields, "VENDOR_NAME", "RECEIVER_NAME", "SUPPLIER_NAME")) ??
+    cleanEntityName(findFieldByLabel(summaryFields, /evento/, /descricao/, /descri[cç][aã]o/)) ??
     findFieldValue(summaryFields, "VENDOR_NAME", "RECEIVER_NAME", "SUPPLIER_NAME") ??
     findFieldValue(summaryFields, "INVOICE_RECEIPT_ID") ??
     "Conta OCR";
-  const amountText =
+  const summaryAmountText =
+    findFieldByLabel(summaryFields, /valor do documento/, /valor cobrado/, /valor pago/, /^valor$/) ??
     findFieldValue(summaryFields, "TOTAL", "AMOUNT_DUE", "BALANCE_DUE", "NET_AMOUNT", "SUBTOTAL") ?? "";
-  const dueDateText =
+  const summaryDueDateText =
+    findFieldByLabel(summaryFields, /data de vencimento/, /^vencimento$/, /vencimento/) ??
     findFieldValue(summaryFields, "DUE_DATE") ??
     findFieldValue(summaryFields, "INVOICE_RECEIPT_DATE");
-  const rawText = buildRawText(expenseDocument);
 
-  return {
-    description,
-    amount: parseAmount(amountText),
-    dueDate: parseDate(dueDateText),
-    category: inferCategory(description),
+  const rawDescription = rawText ? extractBoletoDescription(rawText) : undefined;
+  const rawAmountText = rawText ? extractBoletoAmount(rawText) : undefined;
+  const rawDueDateText = rawText ? extractBoletoDueDate(rawText) : undefined;
+
+  const normalizedDescription =
+    summaryDescription === "Conta OCR"
+      ? rawDescription ?? summaryDescription
+      : summaryDescription;
+  const amount = parseAmount(summaryAmountText) ?? parseAmount(rawAmountText);
+  const dueDate = parseDate(summaryDueDateText) ?? parseDate(rawDueDateText);
+
+  const suggestion = {
+    description: normalizedDescription,
+    amount,
+    dueDate,
+    category: inferCategory(normalizedDescription),
     notes: rawText || undefined,
     imageUrl: sourceUri ?? "",
     sourceUri: sourceUri ?? "",
     key: key ?? "",
     rawText,
-  };
+  } satisfies OcrBillSuggestion;
+
+  console.info("[ocr] parsed suggestion", JSON.stringify({
+    key: suggestion.key,
+    description: suggestion.description,
+    amount: suggestion.amount,
+    dueDate: suggestion.dueDate,
+    category: suggestion.category,
+    summaryFieldCount: summaryFields.length,
+  }));
+
+  return suggestion;
 }
 
 export function validateOcrUpload(input: OcrUploadRequest) {
@@ -239,4 +341,3 @@ export async function extractBillFromUploadedDocument(key: string) {
 
   return extractSuggestion(expenseDocument, `s3://${bucketName}/${key}`, key);
 }
-
