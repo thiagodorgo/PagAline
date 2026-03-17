@@ -13,7 +13,7 @@ if (!connectionUrl && !hasDiscreteConfig) {
 
 const databaseUrl =
   connectionUrl ??
-  `postgresql://${encodeURIComponent(process.env.PGUSER!)}:${encodeURIComponent(process.env.PGPASSWORD!)}@${process.env.PGHOST!}:${process.env.PGPORT ?? "5432"}/${process.env.PGDATABASE!}`;
+  `postgresql://${encodeURIComponent(process.env.PGUSER!)}:${encodeURIComponent(process.env.PGPASSWORD!)}@${process.env.PGHOST!}:${process.env.PGPORT ?? "5432"}/${process.env.PGDATABASE!}${process.env.PGSSLMODE ? `?sslmode=${encodeURIComponent(process.env.PGSSLMODE)}` : ""}`;
 
 export default defineConfig({
   out: "./migrations",
