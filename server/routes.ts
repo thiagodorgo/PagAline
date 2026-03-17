@@ -11,6 +11,10 @@ export async function registerRoutes(
 ): Promise<Server> {
   await storage.seedDefaults();
 
+  app.get("/health", (_req, res) => {
+    res.status(200).json({ ok: true });
+  });
+
   app.get("/api/bills", async (_req, res) => {
     const bills = await storage.getBills();
     res.json(bills);
