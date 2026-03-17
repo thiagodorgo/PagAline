@@ -1,6 +1,6 @@
 import { randomUUID } from "crypto";
 import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
-import { TextractClient, AnalyzeExpenseCommand, type ExpenseDocument, type ExpenseField } from "@aws-sdk/client-textract";
+import { TextractClient, AnalyzeExpenseCommand, type Block, type ExpenseDocument, type ExpenseField } from "@aws-sdk/client-textract";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 const SUPPORTED_CONTENT_TYPES = new Set([
@@ -164,8 +164,10 @@ function cleanEntityName(value?: string) {
   if (!normalized) return undefined;
 
   return normalized
+    .replace(/\s*\/\s*endere[cç]o.*/i, "")
     .replace(/\s+\/\s*\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}.*/i, "")
     .replace(/\s+\/\s*\d{11,14}.*/i, "")
+    .replace(/\s{2,}/g, " ")
     .trim();
 }
 
@@ -184,6 +186,8 @@ function extractBoletoDescription(rawText: string) {
     matchRawTextValue(
       rawText,
       /benefici[aá]rio:\s*(.+)/i,
+      /nome do benefici[aá]rio[^\n:]*:\s*(.+)/i,
+      /nome do benefici[aá]rio[^\n]*\n([^\n]+)/i,
       /nome do benefici[aá]rio.*?:\s*(.+)/i,
       /cedente:\s*(.+)/i,
       /fornecedor:\s*(.+)/i,
@@ -195,23 +199,41 @@ function extractBoletoDescription(rawText: string) {
 function extractBoletoAmount(rawText: string) {
   return matchRawTextValue(
     rawText,
-    /valor do documento:\s*([0-9.,]+)/i,
-    /valor cobrado:\s*([0-9.,]+)/i,
-    /valor pago:\s*([0-9.,]+)/i,
-    /total:\s*([0-9.,]+)/i,
+      /valor do documento:\s*([0-9.,]+)/i,
+      /valor do documento[^\n]*\n([0-9.,]+)/i,
+      /valor cobrado:\s*([0-9.,]+)/i,
+      /valor pago:\s*([0-9.,]+)/i,
+      /total:\s*([0-9.,]+)/i,
   );
 }
 
 function extractBoletoDueDate(rawText: string) {
   return matchRawTextValue(
     rawText,
-    /data de vencimento:\s*([0-9]{2}[\/.-][0-9]{2}[\/.-][0-9]{2,4})/i,
-    /vencimento:\s*([0-9]{2}[\/.-][0-9]{2}[\/.-][0-9]{2,4})/i,
+      /data de vencimento:\s*([0-9]{2}[\/.-][0-9]{2}[\/.-][0-9]{2,4})/i,
+      /data de vencimento[^\n]*\n([0-9]{2}[\/.-][0-9]{2}[\/.-][0-9]{2,4})/i,
+      /vencimento:\s*([0-9]{2}[\/.-][0-9]{2}[\/.-][0-9]{2,4})/i,
   );
+}
+
+function buildRawTextFromBlocks(blocks: Block[] | undefined) {
+  if (!blocks?.length) return "";
+
+  const lines = blocks
+    .filter((block) => block.BlockType === "LINE")
+    .map((block) => normalizeText(block.Text))
+    .filter((line): line is string => !!line);
+
+  return lines.join("\n");
 }
 
 function buildRawText(expenseDocument?: ExpenseDocument) {
   if (!expenseDocument) return "";
+
+  const blockText = buildRawTextFromBlocks(expenseDocument.Blocks);
+  if (blockText) {
+    return blockText;
+  }
 
   const lines = new Set<string>();
   for (const field of expenseDocument.SummaryFields ?? []) {
