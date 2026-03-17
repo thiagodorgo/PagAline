@@ -12,7 +12,7 @@ import Scan from "./pages/Scan";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import Login from "./pages/Login";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useStore } from "./lib/store";
 
 function Router() {
@@ -34,6 +34,10 @@ function App() {
   const currentUser = useStore((state) => state.currentUser);
   const authReady = useStore((state) => state.authReady);
   const fetchCurrentUser = useStore((state) => state.fetchCurrentUser);
+  const isDeviceLoginPath = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return window.location.pathname.startsWith("/login/access");
+  }, []);
 
   useEffect(() => {
     void fetchCurrentUser();
@@ -48,6 +52,8 @@ function App() {
             <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-muted-foreground">
               Carregando...
             </div>
+          ) : isDeviceLoginPath ? (
+            <Login />
           ) : currentUser ? (
             <Router />
           ) : (

@@ -1,11 +1,13 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ShieldCheck } from "lucide-react";
+import { useLocation } from "wouter";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 export default function Login() {
+  const [, setLocation] = useLocation();
   const login = useStore((state) => state.login);
   const redeemDeviceLoginToken = useStore((state) => state.redeemDeviceLoginToken);
   const { toast } = useToast();
@@ -25,7 +27,7 @@ export default function Login() {
     setIsRedeeming(true);
     redeemDeviceLoginToken(accessToken)
       .then(() => {
-        window.history.replaceState({}, "", "/");
+        setLocation("/");
         toast({ title: "Acesso liberado", description: "Este dispositivo entrou na sua conta." });
       })
       .catch((error) => {
@@ -36,7 +38,7 @@ export default function Login() {
         });
       })
       .finally(() => setIsRedeeming(false));
-  }, [accessToken, redeemDeviceLoginToken, toast]);
+  }, [accessToken, redeemDeviceLoginToken, setLocation, toast]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
