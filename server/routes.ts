@@ -12,25 +12,7 @@ import {
   updateUserProfileSchema,
 } from "@shared/schema";
 import { z } from "zod";
-import { normalizeUsername, requireAdmin, requireAuth, sanitizeUser, verifyPassword } from "./auth";
-
-function regenerateSession(req: Request) {
-  return new Promise<void>((resolve, reject) => {
-    req.session.regenerate((error) => {
-      if (error) reject(error);
-      else resolve();
-    });
-  });
-}
-
-function saveSession(req: Request) {
-  return new Promise<void>((resolve, reject) => {
-    req.session.save((error) => {
-      if (error) reject(error);
-      else resolve();
-    });
-  });
-}
+import { clearAuthCookie, normalizeUsername, requireAdmin, requireAuth, sanitizeUser, setAuthCookie, toAuthUser, verifyPassword } from "./auth";
 
 function destroySession(req: Request) {
   return new Promise<void>((resolve, reject) => {
@@ -63,24 +45,24 @@ export async function registerRoutes(
       return res.status(401).json({ message: "Usuário ou senha inválidos." });
     }
 
-    const safeUser = sanitizeUser(user);
-    await regenerateSession(req);
-    req.session.user = safeUser;
-    await saveSession(req);
-    return res.json(safeUser);
+    const authUser = toAuthUser(sanitizeUser(user));
+    setAuthCookie(res, authUser);
+    req.authUser = authUser;
+    return res.json(authUser);
   });
 
   app.post("/api/logout", async (req, res) => {
     await destroySession(req);
+    clearAuthCookie(res);
     res.status(204).send();
   });
 
   app.get("/api/me", (req, res) => {
-    if (!req.session.user) {
+    if (!req.authUser) {
       return res.status(401).json({ message: "Nao autenticado." });
     }
 
-    return res.json(req.session.user);
+    return res.json(req.authUser);
   });
 
   app.post("/api/device-login/redeem", async (req, res) => {
@@ -95,11 +77,10 @@ export async function registerRoutes(
       return res.status(401).json({ message: "QR expirado ou já utilizado." });
     }
 
-    const safeUser = sanitizeUser(user);
-    await regenerateSession(req);
-    req.session.user = safeUser;
-    await saveSession(req);
-    return res.json(safeUser);
+    const authUser = toAuthUser(sanitizeUser(user));
+    setAuthCookie(res, authUser);
+    req.authUser = authUser;
+    return res.json(authUser);
   });
 
   app.patch("/api/me", requireAuth, async (req, res) => {
@@ -108,21 +89,21 @@ export async function registerRoutes(
       return res.status(400).json({ message: "Dados inválidos.", errors: parsed.error.flatten() });
     }
 
-    const updated = await storage.updateUser(req.session.user!.id, parsed.data);
+    const updated = await storage.updateUser(req.authUser!.id, parsed.data);
     if (!updated) {
       return res.status(404).json({ message: "Usuário não encontrado." });
     }
 
-    const safeUser = sanitizeUser(updated);
-    req.session.user = safeUser;
-    await saveSession(req);
-    return res.json(safeUser);
+    const authUser = toAuthUser(sanitizeUser(updated));
+    setAuthCookie(res, authUser);
+    req.authUser = authUser;
+    return res.json(authUser);
   });
 
   app.use("/api", requireAuth);
 
   app.post("/api/device-login-token", async (req, res) => {
-    const { token, expiresAt } = await storage.createDeviceLoginToken(req.session.user!.id);
+    const { token, expiresAt } = await storage.createDeviceLoginToken(req.authUser!.id);
     const baseUrl = `${req.protocol}://${req.get("host")}`;
     res.json({
       token,
