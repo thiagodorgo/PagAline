@@ -6,12 +6,18 @@ import runtimeErrorOverlay from "@replit/vite-plugin-runtime-error-modal";
 import { metaImagesPlugin } from "./vite-plugin-meta-images";
 import { VitePWA } from "vite-plugin-pwa";
 
+const isPwaEnabled = process.env.DISABLE_PWA !== "true";
+
 const pwaPlugins =
-  process.env.DISABLE_PWA === "true"
+  !isPwaEnabled
     ? []
     : [
         VitePWA({
+          injectRegister: "auto",
           registerType: "autoUpdate",
+          manifestFilename: "manifest.webmanifest",
+          useCredentials: true,
+          includeManifestIcons: true,
           includeAssets: ["favicon.png", "icon-192.png", "icon-512.png"],
           manifest: {
             name: "PagAline - Gestão de Contas",
@@ -44,7 +50,10 @@ const pwaPlugins =
             ],
           },
           workbox: {
-            globPatterns: ["**/*.{js,css,html,png,svg,ico,woff2}"],
+            cleanupOutdatedCaches: true,
+            clientsClaim: true,
+            skipWaiting: true,
+            globPatterns: ["**/*.{js,css,html,png,svg,ico,woff2,webmanifest}"],
             runtimeCaching: [
               {
                 urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -66,12 +75,9 @@ const pwaPlugins =
               },
               {
                 urlPattern: /\/api\/.*/i,
-                handler: "NetworkFirst",
+                handler: "NetworkOnly",
                 options: {
-                  cacheName: "api-cache",
-                  expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },
-                  cacheableResponse: { statuses: [0, 200] },
-                  networkTimeoutSeconds: 10,
+                  cacheName: "api-network-only",
                 },
               },
             ],
