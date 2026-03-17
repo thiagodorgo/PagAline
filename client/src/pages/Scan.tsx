@@ -45,6 +45,13 @@ function formatCurrencyInput(value: number) {
   });
 }
 
+function normalizeSuggestedDate(value?: string) {
+  if (!value) return undefined;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return undefined;
+  return parsed;
+}
+
 function inferContentType(file: File) {
   if (file.type) return file.type;
   const lowerName = file.name.toLowerCase();
@@ -131,10 +138,16 @@ export default function Scan() {
   };
 
   const applyOcrSuggestion = (suggestion: OcrSuggestion, fileName: string) => {
+    const suggestedDate = normalizeSuggestedDate(suggestion.dueDate);
+    const suggestedAmount =
+      typeof suggestion.amount === "number" && Number.isFinite(suggestion.amount)
+        ? suggestion.amount
+        : undefined;
+
     setFormData((current) => ({
       description: suggestion.description ?? current.description,
-      amount: suggestion.amount !== undefined ? formatCurrencyInput(suggestion.amount) : current.amount,
-      dueDate: suggestion.dueDate ? new Date(suggestion.dueDate).toISOString().slice(0, 10) : current.dueDate,
+      amount: suggestedAmount !== undefined ? formatCurrencyInput(suggestedAmount) : current.amount,
+      dueDate: suggestedDate ? suggestedDate.toISOString().slice(0, 10) : current.dueDate,
       category: suggestion.category && categories.some((category) => category.name === suggestion.category) ? suggestion.category : current.category,
       notes: current.notes || suggestion.notes || "",
     }));
@@ -142,8 +155,8 @@ export default function Scan() {
 
     const summaryParts = [
       suggestion.description ? `Descrição: ${suggestion.description}` : null,
-      suggestion.amount !== undefined ? `Valor: ${formatCurrencyInput(suggestion.amount)}` : null,
-      suggestion.dueDate ? `Vencimento: ${new Date(suggestion.dueDate).toLocaleDateString("pt-BR")}` : null,
+      suggestedAmount !== undefined ? `Valor: ${formatCurrencyInput(suggestedAmount)}` : null,
+      suggestedDate ? `Vencimento: ${suggestedDate.toLocaleDateString("pt-BR")}` : null,
     ].filter(Boolean);
     setOcrSummary(summaryParts.join(" • "));
   };
