@@ -9,6 +9,7 @@ const hasDiscreteConfig =
   !!process.env.PGUSER &&
   !!process.env.PGPASSWORD;
 const shouldUseSsl =
+  process.env.PGSSLMODE === "no-verify" ||
   process.env.PGSSLMODE === "require" ||
   process.env.PGSSLMODE === "verify-ca" ||
   process.env.PGSSLMODE === "verify-full";
