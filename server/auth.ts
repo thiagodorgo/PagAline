@@ -13,6 +13,14 @@ export interface AuthUser {
   isAdmin: boolean;
 }
 
+interface AuthCookiePayload {
+  id: string;
+  username: string;
+  displayName: string;
+  isAdmin: boolean;
+  exp: number;
+}
+
 declare module "express-serve-static-core" {
   interface Request {
     authUser?: AuthUser;
@@ -58,9 +66,12 @@ function readCookies(req: Request) {
 
 function serializeAuthCookie(user: AuthUser) {
   const payload = encodeBase64Url(JSON.stringify({
-    ...user,
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    isAdmin: user.isAdmin,
     exp: Date.now() + AUTH_COOKIE_MAX_AGE_MS,
-  }));
+  } satisfies AuthCookiePayload));
   return `${payload}.${signPayload(payload)}`;
 }
 
@@ -72,7 +83,7 @@ function parseAuthCookie(cookieValue?: string) {
   if (signPayload(payload) !== signature) return undefined;
 
   try {
-    const parsed = JSON.parse(decodeBase64Url(payload)) as AuthUser & { exp?: number };
+    const parsed = JSON.parse(decodeBase64Url(payload)) as Partial<AuthCookiePayload>;
     if (!parsed?.id || !parsed?.username || !parsed?.displayName) return undefined;
     if (typeof parsed.exp !== "number" || parsed.exp < Date.now()) return undefined;
 
@@ -80,7 +91,6 @@ function parseAuthCookie(cookieValue?: string) {
       id: parsed.id,
       username: parsed.username,
       displayName: parsed.displayName,
-      avatarUrl: parsed.avatarUrl,
       isAdmin: Boolean(parsed.isAdmin),
     } satisfies AuthUser;
   } catch {

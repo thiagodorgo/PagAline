@@ -67,7 +67,7 @@ export const insertUserSchema = createInsertSchema(users).omit({
 });
 export const updateUserProfileSchema = z.object({
   displayName: z.string().trim().min(1).max(80).optional(),
-  avatarUrl: z.string().trim().min(1).nullable().optional(),
+  avatarUrl: z.string().trim().min(1).max(500_000).nullable().optional(),
 });
 export const createUserCredentialsSchema = z.object({
   username: z.string().trim().min(3).max(40).regex(/^[a-zA-Z0-9._-]+$/),

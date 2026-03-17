@@ -62,7 +62,14 @@ export async function registerRoutes(
       return res.status(401).json({ message: "Nao autenticado." });
     }
 
-    return res.json(req.authUser);
+    return storage.getUserById(req.authUser.id).then((user) => {
+      if (!user) {
+        clearAuthCookie(res);
+        return res.status(401).json({ message: "Nao autenticado." });
+      }
+
+      return res.json(toAuthUser(sanitizeUser(user)));
+    });
   });
 
   app.post("/api/device-login/redeem", async (req, res) => {
