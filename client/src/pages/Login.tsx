@@ -1,4 +1,4 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ShieldCheck } from "lucide-react";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
@@ -7,10 +7,36 @@ import { Card, CardContent } from "@/components/ui/card";
 
 export default function Login() {
   const login = useStore((state) => state.login);
+  const redeemDeviceLoginToken = useStore((state) => state.redeemDeviceLoginToken);
   const { toast } = useToast();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRedeeming, setIsRedeeming] = useState(false);
+  const accessToken = useMemo(() => {
+    if (typeof window === "undefined") return null;
+    if (!window.location.pathname.startsWith("/login/access")) return null;
+    return new URLSearchParams(window.location.search).get("token");
+  }, []);
+
+  useEffect(() => {
+    if (!accessToken) return;
+
+    setIsRedeeming(true);
+    redeemDeviceLoginToken(accessToken)
+      .then(() => {
+        window.history.replaceState({}, "", "/");
+        toast({ title: "Acesso liberado", description: "Este dispositivo entrou na sua conta." });
+      })
+      .catch((error) => {
+        toast({
+          title: "QR inválido",
+          description: error instanceof Error ? error.message : "Não foi possível usar esse acesso.",
+          variant: "destructive",
+        });
+      })
+      .finally(() => setIsRedeeming(false));
+  }, [accessToken, redeemDeviceLoginToken, toast]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,7 +82,7 @@ export default function Login() {
                   value={username}
                   onChange={(event) => setUsername(event.target.value)}
                   className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/20"
-                  placeholder="thiago ou aline"
+                  placeholder="Usuario"
                 />
               </div>
 
@@ -76,6 +102,12 @@ export default function Login() {
                 {isSubmitting ? "Entrando..." : "Entrar"}
               </Button>
             </form>
+
+            {isRedeeming && (
+              <div className="rounded-2xl bg-primary/5 px-4 py-3 text-sm text-muted-foreground">
+                Validando o QR de acesso neste dispositivo...
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

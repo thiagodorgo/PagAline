@@ -55,6 +55,23 @@ export async function registerRoutes(
     return res.json(req.session.user);
   });
 
+  app.post("/api/device-login/redeem", async (req, res) => {
+    const schema = z.object({ token: z.string().min(1) });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Token inválido." });
+    }
+
+    const user = await storage.consumeDeviceLoginToken(parsed.data.token);
+    if (!user) {
+      return res.status(401).json({ message: "QR expirado ou já utilizado." });
+    }
+
+    const safeUser = sanitizeUser(user);
+    req.session.user = safeUser;
+    return res.json(safeUser);
+  });
+
   app.patch("/api/me", requireAuth, async (req, res) => {
     const parsed = updateUserProfileSchema.safeParse(req.body);
     if (!parsed.success) {
@@ -72,6 +89,16 @@ export async function registerRoutes(
   });
 
   app.use("/api", requireAuth);
+
+  app.post("/api/device-login-token", async (req, res) => {
+    const { token, expiresAt } = await storage.createDeviceLoginToken(req.session.user!.id);
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    res.json({
+      token,
+      expiresAt,
+      url: `${baseUrl}/login/access?token=${token}`,
+    });
+  });
 
   app.get("/api/admin/users", requireAdmin, async (_req, res) => {
     const users = await storage.getUsers();

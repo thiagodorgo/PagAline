@@ -51,6 +51,8 @@ interface AppState {
   updateCurrentUser: (data: Partial<Pick<AuthUser, "displayName" | "avatarUrl">>) => Promise<void>;
   fetchUsers: () => Promise<void>;
   createUser: (data: { username: string; password: string; isAdmin?: boolean }) => Promise<void>;
+  createDeviceLoginToken: () => Promise<{ token: string; expiresAt: string; url: string }>;
+  redeemDeviceLoginToken: (token: string) => Promise<void>;
 
   fetchBills: () => Promise<void>;
   addBill: (bill: Omit<Bill, 'id' | 'createdAt'>) => Promise<void>;
@@ -148,6 +150,20 @@ export const useStore = create<AppState>()((set, get) => ({
       body: JSON.stringify(data),
     });
     set((state) => ({ users: [...state.users, created] }));
+  },
+
+  createDeviceLoginToken: async () => {
+    return api('/api/device-login-token', {
+      method: 'POST',
+    });
+  },
+
+  redeemDeviceLoginToken: async (token) => {
+    const currentUser = await api('/api/device-login/redeem', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    });
+    set({ currentUser, authReady: true });
   },
 
   fetchBills: async () => {

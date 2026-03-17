@@ -1,10 +1,11 @@
-import { Bell, Shield, CircleHelp, LogOut, ChevronRight, Moon, Smartphone, Edit2, Target, Trash2, RefreshCcw, Camera, UserPlus } from "lucide-react";
+import { Bell, Shield, CircleHelp, LogOut, ChevronRight, Moon, Smartphone, Edit2, Target, Trash2, RefreshCcw, Camera, UserPlus, QrCode, Copy } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "next-themes";
 import { useState, useEffect, useRef } from "react";
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerDescription, DrawerClose } from "@/components/ui/drawer";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useStore } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import { isSameMonth, parseISO } from "date-fns";
@@ -53,6 +54,7 @@ export default function Settings() {
   const createUser = useStore(state => state.createUser);
   const fetchUsers = useStore(state => state.fetchUsers);
   const logout = useStore(state => state.logout);
+  const createDeviceLoginToken = useStore(state => state.createDeviceLoginToken);
   const resetData = useStore(state => state.resetData);
   const fetchBills = useStore(state => state.fetchBills);
   const fetchCategories = useStore(state => state.fetchCategories);
@@ -67,6 +69,8 @@ export default function Settings() {
   const [newUsername, setNewUsername] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [newIsAdmin, setNewIsAdmin] = useState(false);
+  const [isAccessQrOpen, setIsAccessQrOpen] = useState(false);
+  const [accessLink, setAccessLink] = useState("");
 
   useEffect(() => {
     setMounted(true);
@@ -213,6 +217,33 @@ export default function Settings() {
     }
   };
 
+  const handleGenerateAccessQr = async () => {
+    try {
+      const token = await createDeviceLoginToken();
+      setAccessLink(token.url);
+      setIsAccessQrOpen(true);
+    } catch (error) {
+      toast({
+        title: "Falha ao gerar QR",
+        description: error instanceof Error ? error.message : "Não foi possível criar o acesso rápido.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleCopyAccessLink = async () => {
+    try {
+      await navigator.clipboard.writeText(accessLink);
+      toast({ title: "Link copiado", description: "Agora você pode abrir no outro dispositivo." });
+    } catch (error) {
+      toast({
+        title: "Falha ao copiar",
+        description: error instanceof Error ? error.message : "Não foi possível copiar o link.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const currentMonth = new Date();
   const monthBills = bills.filter(bill => {
     const dateToUse = bill.status === 'paid' && bill.paidDate ? toDate(bill.paidDate) : toDate(bill.dueDate);
@@ -305,6 +336,13 @@ export default function Settings() {
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary"><Smartphone size={18} /></div>
                   <span className="font-medium">Gerenciar Categorias</span>
+                </div>
+                <ChevronRight className="text-muted-foreground" size={20} />
+              </div>
+              <div className="flex items-center justify-between p-4 bg-card cursor-pointer hover:bg-muted/50 transition-colors" onClick={handleGenerateAccessQr}>
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center text-primary"><QrCode size={18} /></div>
+                  <span className="font-medium">Acesso por QR Code</span>
                 </div>
                 <ChevronRight className="text-muted-foreground" size={20} />
               </div>
@@ -478,6 +516,36 @@ export default function Settings() {
           </div>
         </DrawerContent>
       </Drawer>
+
+      <Dialog open={isAccessQrOpen} onOpenChange={setIsAccessQrOpen}>
+        <DialogContent className="max-w-sm rounded-3xl">
+          <DialogHeader>
+            <DialogTitle>Acesso em outro dispositivo</DialogTitle>
+            <DialogDescription>
+              Escaneie este QR no celular para entrar automaticamente com a mesma conta.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {accessLink && (
+              <>
+                <div className="mx-auto w-fit rounded-3xl bg-white p-4 shadow-sm">
+                  <img
+                    src={`https://api.qrserver.com/v1/create-qr-code/?size=280x280&data=${encodeURIComponent(accessLink)}`}
+                    alt="QR code de acesso"
+                    className="h-64 w-64 rounded-2xl"
+                  />
+                </div>
+                <p className="text-center text-xs text-muted-foreground">
+                  O QR é de uso único e expira em poucos minutos.
+                </p>
+                <Button variant="outline" className="w-full" onClick={handleCopyAccessLink}>
+                  <Copy className="mr-2 h-4 w-4" /> Copiar link de acesso
+                </Button>
+              </>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

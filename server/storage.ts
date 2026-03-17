@@ -1,7 +1,8 @@
 import { db } from "../db";
-import { eq } from "drizzle-orm";
+import { and, eq, gt, isNull } from "drizzle-orm";
+import crypto from "crypto";
 import {
-  bills, categories, settings, users,
+  bills, categories, settings, users, deviceLoginTokens,
   type Bill, type InsertBill, type UpdateBill,
   type Category, type InsertCategory,
   type Settings, type UpdateSettings,
@@ -30,6 +31,8 @@ export interface IStorage {
   getUserByUsername(username: string): Promise<User | undefined>;
   createUser(input: { username: string; password: string; isAdmin?: boolean; displayName?: string }): Promise<User>;
   updateUser(id: string, data: Partial<Pick<User, "displayName" | "avatarUrl" | "isAdmin">>): Promise<User | undefined>;
+  createDeviceLoginToken(userId: string): Promise<{ token: string; expiresAt: Date }>;
+  consumeDeviceLoginToken(token: string): Promise<User | undefined>;
 
   resetAll(): Promise<void>;
   seedDefaults(): Promise<void>;
@@ -133,6 +136,42 @@ export class DatabaseStorage implements IStorage {
   async updateUser(id: string, data: Partial<Pick<User, "displayName" | "avatarUrl" | "isAdmin">>): Promise<User | undefined> {
     const [updated] = await db.update(users).set(data).where(eq(users.id, id)).returning();
     return updated;
+  }
+
+  async createDeviceLoginToken(userId: string): Promise<{ token: string; expiresAt: Date }> {
+    const token = crypto.randomBytes(24).toString("hex");
+    const expiresAt = new Date(Date.now() + 1000 * 60 * 10);
+
+    await db.insert(deviceLoginTokens).values({
+      token,
+      userId,
+      expiresAt,
+    });
+
+    return { token, expiresAt };
+  }
+
+  async consumeDeviceLoginToken(token: string): Promise<User | undefined> {
+    const now = new Date();
+    const [deviceToken] = await db
+      .select()
+      .from(deviceLoginTokens)
+      .where(and(
+        eq(deviceLoginTokens.token, token),
+        isNull(deviceLoginTokens.usedAt),
+        gt(deviceLoginTokens.expiresAt, now),
+      ));
+
+    if (!deviceToken) {
+      return undefined;
+    }
+
+    await db
+      .update(deviceLoginTokens)
+      .set({ usedAt: now })
+      .where(eq(deviceLoginTokens.id, deviceToken.id));
+
+    return this.getUserById(deviceToken.userId);
   }
 
   async resetAll(): Promise<void> {
