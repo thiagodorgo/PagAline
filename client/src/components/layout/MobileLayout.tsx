@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "wouter";
 import { Home, Camera, Calendar, PieChart, Settings, FileText, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -40,6 +41,19 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
       tone: "border-slate-200 bg-slate-100 text-slate-600",
     },
   ];
+
+  const [activeSignalIndex, setActiveSignalIndex] = useState(0);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setActiveSignalIndex((current) => (current + 1) % desktopSignals.length);
+    }, 30000);
+
+    return () => window.clearInterval(timer);
+  }, [desktopSignals.length]);
+
+  const activeSignal = desktopSignals[activeSignalIndex];
+  const nextSignals = desktopSignals.filter((_, index) => index !== activeSignalIndex).slice(0, 3);
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#ede9fe_0%,#f8fafc_34%,#eef2ff_100%)] text-foreground">
@@ -109,19 +123,55 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
 
           <div className="rounded-[2rem] border border-white/60 bg-slate-950 p-5 text-slate-100 shadow-[0_28px_90px_rgba(15,23,42,0.22)]">
             <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Desktop Signals</p>
-            <div className="mt-4 space-y-3">
-              {desktopSignals.map((signal) => (
-                <div
-                  key={signal.title}
-                  className={cn(
-                    "rounded-2xl border px-4 py-3",
-                    signal.tone,
-                  )}
-                >
-                  <p className="text-sm font-semibold">{signal.title}</p>
-                  <p className="mt-1 text-xs leading-5 text-inherit/80">{signal.description}</p>
+            <div className="mt-4 rounded-[1.6rem] border border-white/10 bg-white/4 p-4">
+              <div
+                className={cn(
+                  "rounded-[1.4rem] border px-4 py-4 transition-all duration-500",
+                  activeSignal.tone,
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold">{activeSignal.title}</p>
+                    <p className="mt-2 text-xs leading-5 text-inherit/80">{activeSignal.description}</p>
+                  </div>
+                  <span className="rounded-full bg-white/10 px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/70">
+                    Agora
+                  </span>
                 </div>
-              ))}
+              </div>
+
+              <div className="mt-4 space-y-3">
+                {nextSignals.map((signal) => (
+                  <div
+                    key={signal.title}
+                    className="rounded-2xl border border-white/10 bg-white/4 px-4 py-3 text-white/84"
+                  >
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-white/45">Próxima</p>
+                    <p className="mt-1 text-sm font-semibold">{signal.title}</p>
+                    <p className="mt-1 text-xs leading-5 text-white/60">{signal.description}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex gap-2">
+                {desktopSignals.map((signal, index) => (
+                  <button
+                    key={signal.title}
+                    type="button"
+                    aria-label={`Mostrar ${signal.title}`}
+                    onClick={() => setActiveSignalIndex(index)}
+                    className={cn(
+                      "h-2.5 flex-1 rounded-full transition-all",
+                      index === activeSignalIndex ? "bg-primary" : "bg-white/12 hover:bg-white/25",
+                    )}
+                  />
+                ))}
+              </div>
+
+              <p className="mt-3 text-[11px] leading-5 text-white/45">
+                O card em destaque alterna a cada 30 segundos e pode receber novas automações no futuro.
+              </p>
             </div>
           </div>
         </aside>
