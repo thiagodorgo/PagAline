@@ -13,6 +13,34 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
     { icon: Settings, label: "Ajustes", path: "/settings" },
   ];
 
+  const desktopSignals = [
+    {
+      title: "Alerta de vencimento",
+      description: "Contas que vencem hoje, amanhã e nesta semana.",
+      tone: "border-destructive/20 bg-destructive/5 text-destructive",
+    },
+    {
+      title: "Alerta de meta mensal",
+      description: "Avisos quando o gasto encostar ou passar da meta.",
+      tone: "border-warning/20 bg-warning/8 text-warning",
+    },
+    {
+      title: "Sugestão pós-OCR",
+      description: "Resumo rápido do boleto lido, com categoria e próximos passos.",
+      tone: "border-primary/20 bg-primary/8 text-primary",
+    },
+    {
+      title: "Resumo mensal financeiro",
+      description: "Leitura consolidada do mês com tendência e prioridades.",
+      tone: "border-emerald-500/20 bg-emerald-500/8 text-emerald-700",
+    },
+    {
+      title: "Futuras mensagens",
+      description: "Espaço para novas automações e alertas do produto.",
+      tone: "border-slate-200 bg-slate-100 text-slate-600",
+    },
+  ];
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,#ede9fe_0%,#f8fafc_34%,#eef2ff_100%)] text-foreground">
       <div className="mx-auto flex min-h-screen w-full max-w-7xl gap-6 md:px-6 lg:px-8">
@@ -20,9 +48,9 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
           <div className="space-y-6">
             <div className="rounded-[2rem] border border-white/60 bg-white/75 p-6 shadow-[0_24px_80px_rgba(76,29,149,0.08)] backdrop-blur">
               <p className="text-xs font-semibold uppercase tracking-[0.28em] text-primary/70">PagAline</p>
-              <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">Controle leve, visão ampla.</h1>
+              <h1 className="mt-3 text-3xl font-bold tracking-tight text-slate-900">Painel inteligente em construção.</h1>
               <p className="mt-3 text-sm leading-6 text-slate-500">
-                O layout continua com alma mobile, mas agora respira melhor em telas maiores.
+                No desktop, essa coluna vai virar a casa das mensagens contextuais do produto.
               </p>
             </div>
 
@@ -80,11 +108,21 @@ export default function MobileLayout({ children }: { children: React.ReactNode }
           </div>
 
           <div className="rounded-[2rem] border border-white/60 bg-slate-950 p-5 text-slate-100 shadow-[0_28px_90px_rgba(15,23,42,0.22)]">
-            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Desktop</p>
-            <p className="mt-3 text-lg font-semibold">Mais espaço para revisar contas, OCR e ajustes sem apertos.</p>
-            <p className="mt-2 text-sm leading-6 text-slate-300">
-              No celular, tudo continua compacto. No desktop, a navegação sai da base e vira painel lateral.
-            </p>
+            <p className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-400">Desktop Signals</p>
+            <div className="mt-4 space-y-3">
+              {desktopSignals.map((signal) => (
+                <div
+                  key={signal.title}
+                  className={cn(
+                    "rounded-2xl border px-4 py-3",
+                    signal.tone,
+                  )}
+                >
+                  <p className="text-sm font-semibold">{signal.title}</p>
+                  <p className="mt-1 text-xs leading-5 text-inherit/80">{signal.description}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </aside>
 
