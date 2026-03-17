@@ -6,6 +6,8 @@ import { useStore } from "@/lib/store";
 import { useLocation } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { z } from "zod";
+import { OcrErrorBoundary } from "@/components/OcrErrorBoundary";
 
 interface OcrUploadTarget {
   key: string;
@@ -24,6 +26,18 @@ interface OcrSuggestion {
   key: string;
   rawText: string;
 }
+
+const ocrSuggestionSchema = z.object({
+  description: z.string().optional(),
+  amount: z.number().finite().optional(),
+  dueDate: z.string().optional(),
+  category: z.string().optional(),
+  notes: z.string().optional(),
+  imageUrl: z.string(),
+  sourceUri: z.string(),
+  key: z.string(),
+  rawText: z.string(),
+});
 
 function normalizeCurrencyInput(value: string) {
   return value
@@ -193,7 +207,21 @@ export default function Scan() {
         body: JSON.stringify({ key: target.key }),
       });
 
-      applyOcrSuggestion(suggestion, file.name);
+      const parsedSuggestion = ocrSuggestionSchema.safeParse(suggestion);
+      if (!parsedSuggestion.success) {
+        console.error("[ocr] invalid suggestion payload", parsedSuggestion.error.flatten(), suggestion);
+        throw new Error("O OCR retornou um formato inesperado. Tente novamente.");
+      }
+
+      console.info("[ocr] suggestion received", {
+        key: parsedSuggestion.data.key,
+        description: parsedSuggestion.data.description,
+        amount: parsedSuggestion.data.amount,
+        dueDate: parsedSuggestion.data.dueDate,
+        category: parsedSuggestion.data.category,
+      });
+
+      applyOcrSuggestion(parsedSuggestion.data, file.name);
       toast({
         title: "OCR concluído",
         description: "Os dados foram extraídos do documento. Revise antes de salvar.",
@@ -214,6 +242,7 @@ export default function Scan() {
   const isHighAmount = parseCurrencyInput(formData.amount) > 1000;
 
   return (
+    <OcrErrorBoundary>
     <div className="flex flex-col min-h-full bg-muted/30 pb-24">
       <header className="px-6 pt-12 pb-4 bg-card border-b border-border sticky top-0 z-10 flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => setLocation("/")} className="-ml-2 h-10 w-10 rounded-full">
@@ -347,5 +376,6 @@ export default function Scan() {
         </Button>
       </div>
     </div>
+    </OcrErrorBoundary>
   );
 }
