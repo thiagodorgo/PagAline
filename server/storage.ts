@@ -1,11 +1,13 @@
 import { db } from "../db";
 import { eq } from "drizzle-orm";
 import {
-  bills, categories, settings,
+  bills, categories, settings, users,
   type Bill, type InsertBill, type UpdateBill,
   type Category, type InsertCategory,
-  type Settings, type UpdateSettings
+  type Settings, type UpdateSettings,
+  type User,
 } from "@shared/schema";
+import { hashPassword } from "./auth";
 
 export interface IStorage {
   getBills(): Promise<Bill[]>;
@@ -23,10 +25,21 @@ export interface IStorage {
   getSettings(): Promise<Settings>;
   updateSettings(s: UpdateSettings): Promise<Settings>;
 
+  getUsers(): Promise<User[]>;
+  getUserById(id: string): Promise<User | undefined>;
+  getUserByUsername(username: string): Promise<User | undefined>;
+  createUser(input: { username: string; password: string; isAdmin?: boolean; displayName?: string }): Promise<User>;
+  updateUser(id: string, data: Partial<Pick<User, "displayName" | "avatarUrl" | "isAdmin">>): Promise<User | undefined>;
+
   resetAll(): Promise<void>;
+  seedDefaults(): Promise<void>;
 }
 
 const DEFAULT_CATEGORIES = ['Casa', 'Transporte', 'Educação', 'Saúde', 'Lazer', 'Impostos', 'Outros'];
+const DEFAULT_USERS = [
+  { username: "thiago", password: "2101", displayName: "Thiago", isAdmin: true },
+  { username: "aline", password: "1523", displayName: "Aline", isAdmin: false },
+] as const;
 
 export class DatabaseStorage implements IStorage {
   async getBills(): Promise<Bill[]> {
@@ -93,6 +106,35 @@ export class DatabaseStorage implements IStorage {
     return updated;
   }
 
+  async getUsers(): Promise<User[]> {
+    return db.select().from(users);
+  }
+
+  async getUserById(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.username, username));
+    return user;
+  }
+
+  async createUser(input: { username: string; password: string; isAdmin?: boolean; displayName?: string }): Promise<User> {
+    const [created] = await db.insert(users).values({
+      username: input.username,
+      passwordHash: hashPassword(input.password),
+      displayName: input.displayName ?? input.username,
+      isAdmin: input.isAdmin ?? false,
+    }).returning();
+    return created;
+  }
+
+  async updateUser(id: string, data: Partial<Pick<User, "displayName" | "avatarUrl" | "isAdmin">>): Promise<User | undefined> {
+    const [updated] = await db.update(users).set(data).where(eq(users.id, id)).returning();
+    return updated;
+  }
+
   async resetAll(): Promise<void> {
     await db.delete(bills);
     await db.delete(categories);
@@ -117,6 +159,13 @@ export class DatabaseStorage implements IStorage {
     const [s] = await db.select().from(settings);
     if (!s) {
       await db.insert(settings).values({ id: "default" }).onConflictDoNothing();
+    }
+
+    for (const user of DEFAULT_USERS) {
+      const existingUser = await this.getUserByUsername(user.username);
+      if (!existingUser) {
+        await this.createUser(user);
+      }
     }
   }
 }

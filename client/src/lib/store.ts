@@ -28,11 +28,29 @@ export interface UserSettings {
   monthlyGoal: number;
 }
 
+export interface AuthUser {
+  id: string;
+  username: string;
+  displayName: string;
+  avatarUrl?: string | null;
+  isAdmin: boolean;
+}
+
 interface AppState {
   bills: Bill[];
   categories: Category[];
   settings: UserSettings | null;
+  currentUser: AuthUser | null;
+  users: AuthUser[];
+  authReady: boolean;
   isLoading: boolean;
+
+  fetchCurrentUser: () => Promise<void>;
+  login: (username: string, password: string) => Promise<void>;
+  logout: () => Promise<void>;
+  updateCurrentUser: (data: Partial<Pick<AuthUser, "displayName" | "avatarUrl">>) => Promise<void>;
+  fetchUsers: () => Promise<void>;
+  createUser: (data: { username: string; password: string; isAdmin?: boolean }) => Promise<void>;
 
   fetchBills: () => Promise<void>;
   addBill: (bill: Omit<Bill, 'id' | 'createdAt'>) => Promise<void>;
@@ -55,6 +73,7 @@ async function api(url: string, options?: RequestInit) {
   const res = await fetch(url, {
     ...options,
     headers: { 'Content-Type': 'application/json', ...options?.headers },
+    credentials: 'include',
   });
   if (!res.ok) {
     const text = await res.text().catch(() => res.statusText);
@@ -68,7 +87,68 @@ export const useStore = create<AppState>()((set, get) => ({
   bills: [],
   categories: [],
   settings: null,
+  currentUser: null,
+  users: [],
+  authReady: false,
   isLoading: true,
+
+  fetchCurrentUser: async () => {
+    const res = await fetch('/api/me', { credentials: 'include' });
+    if (res.status === 401) {
+      set({ currentUser: null, authReady: true });
+      return;
+    }
+
+    if (!res.ok) {
+      const text = await res.text().catch(() => res.statusText);
+      throw new Error(text);
+    }
+
+    const currentUser = await res.json();
+    set({ currentUser, authReady: true });
+  },
+
+  login: async (username, password) => {
+    const currentUser = await api('/api/login', {
+      method: 'POST',
+      body: JSON.stringify({ username, password }),
+    });
+    set({ currentUser, authReady: true });
+  },
+
+  logout: async () => {
+    await api('/api/logout', { method: 'POST' });
+    set({
+      currentUser: null,
+      users: [],
+      bills: [],
+      categories: [],
+      settings: null,
+      isLoading: false,
+      authReady: true,
+    });
+  },
+
+  updateCurrentUser: async (data) => {
+    const currentUser = await api('/api/me', {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    });
+    set({ currentUser });
+  },
+
+  fetchUsers: async () => {
+    const users = await api('/api/admin/users');
+    set({ users });
+  },
+
+  createUser: async (data) => {
+    const created = await api('/api/admin/users', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    set((state) => ({ users: [...state.users, created] }));
+  },
 
   fetchBills: async () => {
     const bills = await api('/api/bills');

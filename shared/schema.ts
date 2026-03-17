@@ -29,6 +29,16 @@ export const settings = pgTable("settings", {
   monthlyGoal: doublePrecision("monthly_goal").notNull().default(5000),
 });
 
+export const users = pgTable("users", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  username: text("username").notNull().unique(),
+  passwordHash: text("password_hash").notNull(),
+  displayName: text("display_name").notNull(),
+  avatarUrl: text("avatar_url"),
+  isAdmin: boolean("is_admin").notNull().default(false),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 const billSchemaRefinements = {
   dueDate: () => z.coerce.date(),
   paidDate: () => z.coerce.date(),
@@ -40,6 +50,25 @@ export const updateBillSchema = createInsertSchema(bills, billSchemaRefinements)
 
 export const insertCategorySchema = createInsertSchema(categories).omit({ id: true });
 export const updateSettingsSchema = createInsertSchema(settings).omit({ id: true }).partial();
+export const insertUserSchema = createInsertSchema(users).omit({
+  id: true,
+  passwordHash: true,
+  createdAt: true,
+  avatarUrl: true,
+});
+export const updateUserProfileSchema = z.object({
+  displayName: z.string().trim().min(1).max(80).optional(),
+  avatarUrl: z.string().trim().min(1).nullable().optional(),
+});
+export const createUserCredentialsSchema = z.object({
+  username: z.string().trim().min(3).max(40).regex(/^[a-zA-Z0-9._-]+$/),
+  password: z.string().min(4).max(128),
+  isAdmin: z.boolean().optional(),
+});
+export const loginSchema = z.object({
+  username: z.string().trim().min(1),
+  password: z.string().min(1),
+});
 
 export type Bill = typeof bills.$inferSelect;
 export type InsertBill = z.infer<typeof insertBillSchema>;
@@ -48,3 +77,8 @@ export type Category = typeof categories.$inferSelect;
 export type InsertCategory = z.infer<typeof insertCategorySchema>;
 export type Settings = typeof settings.$inferSelect;
 export type UpdateSettings = z.infer<typeof updateSettingsSchema>;
+export type User = typeof users.$inferSelect;
+export type InsertUser = z.infer<typeof insertUserSchema>;
+export type UpdateUserProfile = z.infer<typeof updateUserProfileSchema>;
+export type CreateUserCredentials = z.infer<typeof createUserCredentialsSchema>;
+export type LoginCredentials = z.infer<typeof loginSchema>;

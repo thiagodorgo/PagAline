@@ -1,10 +1,26 @@
 import express, { type Request, Response, NextFunction } from "express";
+import session from "express-session";
+import connectPgSimple from "connect-pg-simple";
 import { registerRoutes } from "./routes";
 import { serveStatic } from "./static";
 import { createServer } from "http";
+import { pool } from "../db";
 
 const app = express();
 const httpServer = createServer(app);
+const PgStore = connectPgSimple(session);
+
+declare module "express-session" {
+  interface SessionData {
+    user?: {
+      id: string;
+      username: string;
+      displayName: string;
+      avatarUrl?: string | null;
+      isAdmin: boolean;
+    };
+  }
+}
 
 declare module "http" {
   interface IncomingMessage {
@@ -22,6 +38,28 @@ app.use(
 );
 
 app.use(express.urlencoded({ extended: false, limit: "10mb" }));
+app.set("trust proxy", 1);
+
+app.use(
+  session({
+    store: new PgStore({
+      pool,
+      tableName: "user_sessions",
+      createTableIfMissing: true,
+    }),
+    name: "pagaline.sid",
+    secret: process.env.SESSION_SECRET || process.env.PGPASSWORD || "pagaline-session-secret",
+    resave: false,
+    saveUninitialized: false,
+    rolling: true,
+    cookie: {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      maxAge: 1000 * 60 * 60 * 24 * 7,
+    },
+  }),
+);
 
 export function log(message: string, source = "express") {
   const formattedTime = new Date().toLocaleTimeString("en-US", {

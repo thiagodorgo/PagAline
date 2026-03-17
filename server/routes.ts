@@ -2,8 +2,17 @@ import type { Express } from "express";
 import { type Server } from "http";
 import { storage } from "./storage";
 import { createOcrUploadTarget, extractBillFromUploadedDocument } from "./ocr";
-import { insertBillSchema, updateBillSchema, insertCategorySchema, updateSettingsSchema } from "@shared/schema";
+import {
+  insertBillSchema,
+  updateBillSchema,
+  insertCategorySchema,
+  updateSettingsSchema,
+  createUserCredentialsSchema,
+  loginSchema,
+  updateUserProfileSchema,
+} from "@shared/schema";
 import { z } from "zod";
+import { normalizeUsername, requireAdmin, requireAuth, sanitizeUser, verifyPassword } from "./auth";
 
 export async function registerRoutes(
   httpServer: Server,
@@ -13,6 +22,82 @@ export async function registerRoutes(
 
   app.get("/health", (_req, res) => {
     res.status(200).json({ ok: true });
+  });
+
+  app.post("/api/login", async (req, res) => {
+    const parsed = loginSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Credenciais inválidas." });
+    }
+
+    const username = normalizeUsername(parsed.data.username);
+    const user = await storage.getUserByUsername(username);
+    if (!user || !verifyPassword(parsed.data.password, user.passwordHash)) {
+      return res.status(401).json({ message: "Usuário ou senha inválidos." });
+    }
+
+    const safeUser = sanitizeUser(user);
+    req.session.user = safeUser;
+    return res.json(safeUser);
+  });
+
+  app.post("/api/logout", (req, res) => {
+    req.session.destroy(() => {
+      res.status(204).send();
+    });
+  });
+
+  app.get("/api/me", (req, res) => {
+    if (!req.session.user) {
+      return res.status(401).json({ message: "Nao autenticado." });
+    }
+
+    return res.json(req.session.user);
+  });
+
+  app.patch("/api/me", requireAuth, async (req, res) => {
+    const parsed = updateUserProfileSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Dados inválidos.", errors: parsed.error.flatten() });
+    }
+
+    const updated = await storage.updateUser(req.session.user!.id, parsed.data);
+    if (!updated) {
+      return res.status(404).json({ message: "Usuário não encontrado." });
+    }
+
+    const safeUser = sanitizeUser(updated);
+    req.session.user = safeUser;
+    return res.json(safeUser);
+  });
+
+  app.use("/api", requireAuth);
+
+  app.get("/api/admin/users", requireAdmin, async (_req, res) => {
+    const users = await storage.getUsers();
+    res.json(users.map(sanitizeUser));
+  });
+
+  app.post("/api/admin/users", requireAdmin, async (req, res) => {
+    const parsed = createUserCredentialsSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: "Dados inválidos.", errors: parsed.error.flatten() });
+    }
+
+    const username = normalizeUsername(parsed.data.username);
+    const existing = await storage.getUserByUsername(username);
+    if (existing) {
+      return res.status(409).json({ message: "Usuário já existe." });
+    }
+
+    const created = await storage.createUser({
+      username,
+      password: parsed.data.password,
+      isAdmin: parsed.data.isAdmin ?? false,
+      displayName: parsed.data.username.trim(),
+    });
+
+    res.status(201).json(sanitizeUser(created));
   });
 
   app.get("/api/bills", async (_req, res) => {

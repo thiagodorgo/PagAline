@@ -1,4 +1,4 @@
-import { User, Bell, Shield, CircleHelp, LogOut, ChevronRight, Moon, Smartphone, Edit2, Target, Building, Plus, Trash2, RefreshCcw, Camera } from "lucide-react";
+import { Bell, Shield, CircleHelp, LogOut, ChevronRight, Moon, Smartphone, Edit2, Target, Trash2, RefreshCcw, Camera, UserPlus } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
@@ -43,10 +43,16 @@ export default function Settings() {
   const categories = useStore(state => state.categories);
   const settings = useStore(state => state.settings);
   const bills = useStore(state => state.bills);
+  const currentUser = useStore(state => state.currentUser);
+  const users = useStore(state => state.users);
   
   const addCategory = useStore(state => state.addCategory);
   const deleteCategory = useStore(state => state.deleteCategory);
   const updateSettings = useStore(state => state.updateSettings);
+  const updateCurrentUser = useStore(state => state.updateCurrentUser);
+  const createUser = useStore(state => state.createUser);
+  const fetchUsers = useStore(state => state.fetchUsers);
+  const logout = useStore(state => state.logout);
   const resetData = useStore(state => state.resetData);
   const fetchBills = useStore(state => state.fetchBills);
   const fetchCategories = useStore(state => state.fetchCategories);
@@ -57,7 +63,10 @@ export default function Settings() {
   const [isGoalDrawerOpen, setIsGoalDrawerOpen] = useState(false);
   const [newGoal, setNewGoal] = useState(settings?.monthlyGoal?.toString() || "5000");
   const [isProfileDrawerOpen, setIsProfileDrawerOpen] = useState(false);
-  const [newName, setNewName] = useState(settings?.userName || "Aline Silva");
+  const [newName, setNewName] = useState(currentUser?.displayName || "Aline");
+  const [newUsername, setNewUsername] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [newIsAdmin, setNewIsAdmin] = useState(false);
 
   useEffect(() => {
     setMounted(true);
@@ -69,15 +78,23 @@ export default function Settings() {
   useEffect(() => {
     if (settings) {
       setNewGoal(settings.monthlyGoal.toString());
-      setNewName(settings.userName);
     }
   }, [settings]);
+
+  useEffect(() => {
+    if (currentUser) {
+      setNewName(currentUser.displayName);
+      if (currentUser.isAdmin) {
+        fetchUsers();
+      }
+    }
+  }, [currentUser]);
 
   const isDark = mounted && (theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches));
 
   const monthlyGoal = settings?.monthlyGoal || 5000;
-  const userName = settings?.userName || "Aline Silva";
-  const userPlan = settings?.userPlan || "Plano Premium";
+  const userName = currentUser?.displayName || currentUser?.username || "Usuário";
+  const userPlan = currentUser?.isAdmin ? "Administrador" : "Usuária";
 
   const handleAddCategory = async () => {
     if (newCategoryName.trim()) {
@@ -115,7 +132,7 @@ export default function Settings() {
   const handleSaveProfile = async () => {
     if (newName.trim()) {
       try {
-        await updateSettings({ userName: newName.trim() });
+        await updateCurrentUser({ displayName: newName.trim() });
         setIsProfileDrawerOpen(false);
         toast({ title: "Perfil atualizado", description: "Seus dados foram alterados com sucesso." });
       } catch (error) {
@@ -148,7 +165,7 @@ export default function Settings() {
     if (file) {
       try {
         const compressed = await compressImageToDataUrl(file);
-        await updateSettings({ customPhotoUrl: compressed });
+        await updateCurrentUser({ avatarUrl: compressed });
         toast({ title: "Foto atualizada", description: "Sua foto de perfil foi salva com sucesso." });
       } catch (error) {
         toast({
@@ -162,6 +179,40 @@ export default function Settings() {
     }
   };
 
+  const handleCreateUser = async () => {
+    if (!newUsername.trim() || !newPassword.trim()) return;
+
+    try {
+      await createUser({
+        username: newUsername.trim(),
+        password: newPassword,
+        isAdmin: newIsAdmin,
+      });
+      setNewUsername("");
+      setNewPassword("");
+      setNewIsAdmin(false);
+      toast({ title: "Usuário criado", description: "O novo acesso foi salvo com sucesso." });
+    } catch (error) {
+      toast({
+        title: "Falha ao criar usuário",
+        description: error instanceof Error ? error.message : "Não foi possível criar o usuário.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+    } catch (error) {
+      toast({
+        title: "Falha ao sair",
+        description: error instanceof Error ? error.message : "Não foi possível encerrar a sessão.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const currentMonth = new Date();
   const monthBills = bills.filter(bill => {
     const dateToUse = bill.status === 'paid' && bill.paidDate ? toDate(bill.paidDate) : toDate(bill.dueDate);
@@ -172,7 +223,7 @@ export default function Settings() {
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value);
 
-  const avatarSrc = settings?.customPhotoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userName}`;
+  const avatarSrc = currentUser?.avatarUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${userName}`;
 
   return (
     <div className="flex flex-col min-h-full pb-24">
@@ -282,8 +333,70 @@ export default function Settings() {
           </Card>
         </div>
 
+        {currentUser?.isAdmin && (
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-muted-foreground px-2 uppercase tracking-wider">Ajustes de Admin</h3>
+            <Card className="overflow-hidden">
+              <div className="space-y-4 p-4">
+                <div className="flex items-start gap-3 rounded-2xl bg-primary/5 p-4">
+                  <div className="mt-0.5 flex h-9 w-9 items-center justify-center rounded-full bg-primary/10 text-primary">
+                    <Shield size={18} />
+                  </div>
+                  <div>
+                    <p className="font-medium">Criar acesso de usuário</p>
+                    <p className="text-sm text-muted-foreground">
+                      Thiago administra os acessos. Novos usuários entram com nome de usuário e senha.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <input
+                    type="text"
+                    placeholder="Nome de usuário"
+                    value={newUsername}
+                    onChange={(e) => setNewUsername(e.target.value)}
+                    className="w-full rounded-xl bg-muted px-4 py-3"
+                  />
+                  <input
+                    type="password"
+                    placeholder="Senha"
+                    value={newPassword}
+                    onChange={(e) => setNewPassword(e.target.value)}
+                    className="w-full rounded-xl bg-muted px-4 py-3"
+                  />
+                  <label className="flex items-center justify-between rounded-xl bg-muted/60 px-4 py-3 text-sm font-medium">
+                    Conceder acesso de administrador
+                    <Switch checked={newIsAdmin} onCheckedChange={setNewIsAdmin} />
+                  </label>
+                  <Button className="w-full" onClick={handleCreateUser} disabled={!newUsername.trim() || !newPassword.trim()}>
+                    <UserPlus className="mr-2 h-4 w-4" /> Criar usuário
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  {users.map((user) => (
+                    <div key={user.id} className="flex items-center justify-between rounded-xl bg-muted/50 px-4 py-3">
+                      <div>
+                        <p className="font-medium">{user.displayName}</p>
+                        <p className="text-sm text-muted-foreground">@{user.username}</p>
+                      </div>
+                      <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                        {user.isAdmin ? "Admin" : "Usuário"}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </Card>
+          </div>
+        )}
+
         <div className="pt-4">
-          <button className="flex items-center justify-center gap-2 w-full py-4 text-muted-foreground font-medium bg-muted rounded-2xl hover:bg-muted/80 transition-colors">
+          <button
+            className="flex items-center justify-center gap-2 w-full py-4 text-muted-foreground font-medium bg-muted rounded-2xl hover:bg-muted/80 transition-colors"
+            onClick={handleLogout}
+          >
             <LogOut size={20} /> Sair da conta
           </button>
         </div>

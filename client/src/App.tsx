@@ -11,6 +11,9 @@ import Bills from "./pages/Bills";
 import Scan from "./pages/Scan";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import Login from "./pages/Login";
+import { useEffect } from "react";
+import { useStore } from "./lib/store";
 
 function Router() {
   return (
@@ -28,12 +31,28 @@ function Router() {
 }
 
 function App() {
+  const currentUser = useStore((state) => state.currentUser);
+  const authReady = useStore((state) => state.authReady);
+  const fetchCurrentUser = useStore((state) => state.fetchCurrentUser);
+
+  useEffect(() => {
+    void fetchCurrentUser();
+  }, [fetchCurrentUser]);
+
   return (
     <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Toaster />
-          <Router />
+          {!authReady ? (
+            <div className="flex min-h-screen items-center justify-center bg-slate-50 text-sm text-muted-foreground">
+              Carregando...
+            </div>
+          ) : currentUser ? (
+            <Router />
+          ) : (
+            <Login />
+          )}
         </TooltipProvider>
       </QueryClientProvider>
     </ThemeProvider>
