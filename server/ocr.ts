@@ -1,8 +1,7 @@
 import { randomUUID } from "crypto";
-import { S3Client, PutObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand } from "@aws-sdk/client-s3";
 import { TextractClient, AnalyzeExpenseCommand, type Block, type ExpenseDocument, type ExpenseField } from "@aws-sdk/client-textract";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { PDFParse } from "pdf-parse";
 
 const SUPPORTED_CONTENT_TYPES = new Set([
   "application/pdf",
@@ -59,48 +58,6 @@ function getS3Client() {
 
 function getTextractClient() {
   return new TextractClient({ region: getAwsRegion() });
-}
-
-async function streamToBuffer(stream: unknown) {
-  if (!stream) return Buffer.alloc(0);
-
-  if (typeof stream === "object" && stream !== null && "transformToByteArray" in stream && typeof stream.transformToByteArray === "function") {
-    const bytes = await stream.transformToByteArray();
-    return Buffer.from(bytes);
-  }
-
-  return await new Promise<Buffer>((resolve, reject) => {
-    const chunks: Buffer[] = [];
-    const readable = stream as NodeJS.ReadableStream;
-
-    readable.on("data", (chunk) => chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)));
-    readable.on("end", () => resolve(Buffer.concat(chunks)));
-    readable.on("error", reject);
-  });
-}
-
-async function extractPdfTextFromS3(bucketName: string, key: string) {
-  if (!key.toLowerCase().endsWith(".pdf")) return "";
-
-  try {
-    const response = await getS3Client().send(
-      new GetObjectCommand({
-        Bucket: bucketName,
-        Key: key,
-      }),
-    );
-
-    const pdfBuffer = await streamToBuffer(response.Body);
-    if (!pdfBuffer.length) return "";
-
-    const parser = new PDFParse({ data: pdfBuffer });
-    const result = await parser.getText();
-    await parser.destroy();
-    return normalizeMultilineText(result.text);
-  } catch (error) {
-    console.warn("[ocr] pdf text fallback failed", error);
-    return "";
-  }
 }
 
 function sanitizeFileName(fileName: string) {
@@ -375,11 +332,9 @@ function buildRawText(expenseDocument?: ExpenseDocument) {
   return Array.from(lines).join("\n");
 }
 
-function extractSuggestion(expenseDocument?: ExpenseDocument, sourceUri?: string, key?: string, fallbackRawText?: string): OcrBillSuggestion {
+function extractSuggestion(expenseDocument?: ExpenseDocument, sourceUri?: string, key?: string): OcrBillSuggestion {
   const summaryFields = expenseDocument?.SummaryFields ?? [];
-  const rawText = [buildRawText(expenseDocument), fallbackRawText]
-    .filter((value): value is string => !!value)
-    .join("\n");
+  const rawText = buildRawText(expenseDocument);
 
   const summaryDescription =
     cleanEntityName(findFieldByLabel(summaryFields, /benefici[aá]rio/, /fornecedor/, /recebedor/, /cedente/)) ??
@@ -472,7 +427,6 @@ export async function createOcrUploadTarget(input: OcrUploadRequest): Promise<Oc
 
 export async function extractBillFromUploadedDocument(key: string) {
   const bucketName = getOcrBucketName();
-  const fallbackRawText = await extractPdfTextFromS3(bucketName, key);
   const response = await getTextractClient().send(
     new AnalyzeExpenseCommand({
       Document: {
@@ -491,5 +445,5 @@ export async function extractBillFromUploadedDocument(key: string) {
     throw error;
   }
 
-  return extractSuggestion(expenseDocument, `s3://${bucketName}/${key}`, key, fallbackRawText);
+  return extractSuggestion(expenseDocument, `s3://${bucketName}/${key}`, key);
 }
