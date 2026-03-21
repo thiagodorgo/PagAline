@@ -2,7 +2,7 @@
 
 ## Visão geral
 
-O `APK/` contém a versão Android offline do PagAline, construída com React 19 + Vite 7 + Capacitor 6. Nesta arquitetura, toda a persistência e processamento são locais no dispositivo: o PostgreSQL/AWS do projeto web foi substituído por SQLite via `@capacitor-community/sqlite`, e o OCR em nuvem foi substituído por captura local com `@capacitor/camera` e reconhecimento offline com `@capacitor-mlkit/text-recognition`.
+O `APK/` contém a versão Android offline do PagAline, construída com React 19 + Vite 7 + Capacitor 6. Nesta arquitetura, toda a persistência e processamento são locais no dispositivo: o PostgreSQL/AWS do projeto web foi substituído por SQLite via `@capacitor-community/sqlite`, e o OCR em nuvem foi substituído por captura local com `@capacitor/camera` e reconhecimento offline com `@jcesarmobile/capacitor-ocr`.
 
 ## Objetivos atendidos
 
@@ -107,7 +107,7 @@ Configurações centrais:
   - Nome do banco: `pagaline.db`
   - Tabelas locais: `bills`, `categories`, `settings`
 - `src/lib/ocr.ts`
-  - OCR local usando base64 + ML Kit
+  - OCR local com plugin nativo OCR + ML Kit on-device
 
 ## Estrutura de pastas
 
