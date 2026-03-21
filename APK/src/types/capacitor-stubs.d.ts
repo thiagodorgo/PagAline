@@ -10,6 +10,7 @@ declare module '@capacitor/cli' {
 declare module '@capacitor/core' {
   export const Capacitor: {
     getPlatform(): string;
+    convertFileSrc(path: string): string;
   };
 }
 
@@ -17,9 +18,12 @@ declare module '@capacitor/camera' {
   export interface Photo {
     base64String?: string;
     format?: string;
+    path?: string;
+    webPath?: string;
   }
   export enum CameraResultType {
     Base64 = 'base64',
+    Uri = 'uri',
   }
   export enum CameraSource {
     Camera = 'CAMERA',
@@ -72,8 +76,19 @@ declare module '@capacitor-community/sqlite' {
   };
 }
 
-declare module '@capacitor-mlkit/text-recognition' {
-  export const TextRecognition: unknown;
+declare module '@jcesarmobile/capacitor-ocr' {
+  export interface RecognitionResult {
+    text: string;
+    confidence: number;
+  }
+
+  export interface RecognitionResults {
+    results: RecognitionResult[];
+  }
+
+  export const Ocr: {
+    process(options: { image: string }): Promise<RecognitionResults>;
+  };
 }
 
 declare module '*.css';

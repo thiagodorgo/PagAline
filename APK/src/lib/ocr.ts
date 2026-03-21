@@ -1,5 +1,6 @@
 import { Camera, CameraResultType, CameraSource, type Photo } from '@capacitor/camera';
-import { TextRecognition } from '@capacitor-mlkit/text-recognition';
+import { Capacitor } from '@capacitor/core';
+import { Ocr } from '@jcesarmobile/capacitor-ocr';
 import { parse } from 'date-fns';
 
 export interface OcrSuggestion {
@@ -11,40 +12,52 @@ export interface OcrSuggestion {
   imageUrl?: string;
 }
 
-type RecognitionPlugin = {
-  recognizeText(options: { base64Image: string }): Promise<{
-    text?: string;
-    blocks?: Array<{ text?: string; lines?: Array<{ text?: string }> }>;
-  }>;
-};
-
-const textRecognition = TextRecognition as unknown as RecognitionPlugin;
-
 async function getPhoto(source: CameraSource): Promise<Photo> {
   return Camera.getPhoto({
     source,
-    resultType: CameraResultType.Base64,
+    resultType: CameraResultType.Uri,
     quality: 90,
     correctOrientation: true,
   });
 }
 
-function toDataUrl(base64: string, format?: string): string {
-  const mime = format ? `image/${format.replace('jpg', 'jpeg')}` : 'image/jpeg';
-  return `data:${mime};base64,${base64}`;
+async function fileToDataUrl(photo: Photo): Promise<string | undefined> {
+  if (photo.webPath) {
+    const response = await fetch(photo.webPath);
+    const blob = await response.blob();
+    return new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          resolve(reader.result);
+        } else {
+          reject(new Error('Não foi possível converter a imagem para preview.'));
+        }
+      };
+      reader.onerror = () => reject(new Error('Não foi possível ler a imagem capturada.'));
+      reader.readAsDataURL(blob);
+    });
+  }
+
+  if (photo.path) {
+    return Capacitor.convertFileSrc(photo.path);
+  }
+
+  return undefined;
 }
 
 async function buildSuggestionFromPhoto(photo: Photo): Promise<OcrSuggestion> {
-  const base64 = photo.base64String;
-  if (!base64) {
-    throw new Error('Não foi possível obter a imagem para OCR.');
+  const imagePath = photo.path ?? photo.webPath;
+  if (!imagePath) {
+    throw new Error('Não foi possível obter o caminho da imagem para OCR.');
   }
 
-  const rawText = await extractTextFromImage(base64);
+  const rawText = await extractTextFromImage(imagePath);
   const amount = parseAmount(rawText);
   const dueDate = parseDate(rawText);
   const description = parseDescription(rawText);
   const category = inferCategory(rawText);
+  const imageUrl = await fileToDataUrl(photo);
 
   return {
     description,
@@ -52,7 +65,7 @@ async function buildSuggestionFromPhoto(photo: Photo): Promise<OcrSuggestion> {
     dueDate,
     category,
     notes: rawText || undefined,
-    imageUrl: toDataUrl(base64, photo.format),
+    imageUrl,
   };
 }
 
@@ -64,17 +77,9 @@ export async function scanFromGallery(): Promise<OcrSuggestion> {
   return buildSuggestionFromPhoto(await getPhoto(CameraSource.Photos));
 }
 
-async function extractTextFromImage(base64: string): Promise<string> {
-  const result = await textRecognition.recognizeText({ base64Image: base64 });
-  if (result.text?.trim()) {
-    return result.text.trim();
-  }
-  const fromBlocks = (result.blocks ?? [])
-    .flatMap((block) => block.lines?.map((line) => line.text ?? '') ?? [block.text ?? ''])
-    .filter(Boolean)
-    .join('\n')
-    .trim();
-  return fromBlocks;
+async function extractTextFromImage(imagePath: string): Promise<string> {
+  const response = await Ocr.process({ image: imagePath });
+  return response.results.map((item) => item.text).join('\n').trim();
 }
 
 function parseAmount(text: string): number | undefined {
