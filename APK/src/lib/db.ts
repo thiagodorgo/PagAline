@@ -34,34 +34,12 @@ export interface Settings {
 
 export type InsertBill = Omit<Bill, 'id' | 'createdAt'>;
 
-type BillRow = {
-  id: string;
-  description: string;
-  amount: number;
-  due_date: string;
-  category: string;
-  status: string;
-  notes: string | null;
-  image_url: string | null;
-  paid_date: string | null;
-  created_at: string;
-};
-
-type CategoryRow = {
-  id: string;
-  name: string;
-};
-
-type SettingsRow = {
-  id: string;
-  user_name: string;
-  user_plan: string;
-  custom_photo_url: string | null;
-  monthly_goal: number;
-};
-
 const DB_NAME = 'pagaline.db';
 const DB_VERSION = 1;
+const BILLS_STORE = 'bills';
+const CATEGORIES_STORE = 'categories';
+const SETTINGS_STORE = 'settings';
+
 const DEFAULT_SETTINGS: Settings = {
   id: 'default',
   userName: 'Aline Silva',
@@ -69,159 +47,127 @@ const DEFAULT_SETTINGS: Settings = {
   customPhotoUrl: null,
   monthlyGoal: 5000,
 };
+
 const DEFAULT_CATEGORIES = ['Casa', 'Transporte', 'Educação', 'Saúde', 'Lazer', 'Impostos', 'Outros'];
-const schema = `
-CREATE TABLE IF NOT EXISTS bills (
-  id TEXT PRIMARY KEY,
-  description TEXT NOT NULL,
-  amount REAL NOT NULL,
-  due_date TEXT NOT NULL,
-  category TEXT NOT NULL DEFAULT 'Outros',
-  status TEXT NOT NULL DEFAULT 'pending',
-  notes TEXT,
-  image_url TEXT,
-  paid_date TEXT,
-  created_at TEXT NOT NULL
-);
-CREATE TABLE IF NOT EXISTS categories (
-  id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE
-);
-CREATE TABLE IF NOT EXISTS settings (
-  id TEXT PRIMARY KEY DEFAULT 'default',
-  user_name TEXT NOT NULL DEFAULT 'Aline Silva',
-  user_plan TEXT NOT NULL DEFAULT 'Plano Premium',
-  custom_photo_url TEXT,
-  monthly_goal REAL NOT NULL DEFAULT 5000
-);
-`;
 
-let sqlite: SQLiteConnection | null = null;
-let database: SQLiteDBConnection | null = null;
+let databasePromise: Promise<IDBDatabase> | null = null;
 
-function getConnection(): SQLiteConnection {
-  if (!sqlite) {
-    sqlite = new SQLiteConnection(CapacitorSQLite);
-  }
-  return sqlite;
-}
-
-async function openDatabase(
-  databaseName: string,
-  encrypted: boolean,
-  mode: 'no encryption' | 'encryption' | 'secret',
-  version: number,
-): Promise<SQLiteDBConnection> {
-  const connection = getConnection();
-  const consistency = await connection.checkConnectionsConsistency();
-  const hasConnection = (await connection.isConnection(databaseName, false)).result;
-
-  if (consistency.result && hasConnection) {
-    const existing = await connection.retrieveConnection(databaseName, false);
-    await existing.open();
-    return existing;
+function ensureIndexedDb(): IDBFactory {
+  if (typeof indexedDB === 'undefined') {
+    throw new Error('IndexedDB não está disponível neste ambiente.');
   }
 
-  const created = await connection.createConnection(databaseName, encrypted, mode, version, false);
-  await created.open();
-  return created;
+  return indexedDB;
 }
 
-function assertDatabase(): SQLiteDBConnection {
-  if (!database) {
-    throw new Error('Banco de dados não inicializado.');
+function promisifyRequest<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error ?? new Error('Falha ao acessar o banco local.'));
+  });
+}
+
+function waitForTransaction(transaction: IDBTransaction): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    transaction.oncomplete = () => resolve();
+    transaction.onerror = () => reject(transaction.error ?? new Error('Falha ao concluir a transação.'));
+    transaction.onabort = () => reject(transaction.error ?? new Error('A transação foi abortada.'));
+  });
+}
+
+async function getDatabase(): Promise<IDBDatabase> {
+  if (!databasePromise) {
+    databasePromise = new Promise<IDBDatabase>((resolve, reject) => {
+      const request = ensureIndexedDb().open(DB_NAME, DB_VERSION);
+
+      request.onupgradeneeded = () => {
+        const database = request.result;
+
+        if (!database.objectStoreNames.contains(BILLS_STORE)) {
+          database.createObjectStore(BILLS_STORE, { keyPath: 'id' });
+        }
+
+        if (!database.objectStoreNames.contains(CATEGORIES_STORE)) {
+          database.createObjectStore(CATEGORIES_STORE, { keyPath: 'id' });
+        }
+
+        if (!database.objectStoreNames.contains(SETTINGS_STORE)) {
+          database.createObjectStore(SETTINGS_STORE, { keyPath: 'id' });
+        }
+      };
+
+      request.onsuccess = () => resolve(request.result);
+      request.onerror = () => reject(request.error ?? new Error('Falha ao abrir o banco local.'));
+    });
   }
-  return database;
+
+  return databasePromise;
 }
 
-function mapBill(row: BillRow): Bill {
-  return {
-    id: row.id,
-    description: row.description,
-    amount: Number(row.amount),
-    dueDate: row.due_date,
-    category: row.category,
-    status: row.status,
-    notes: row.notes,
-    imageUrl: row.image_url,
-    paidDate: row.paid_date,
-    createdAt: row.created_at,
-  };
+async function getAll<T>(storeName: string): Promise<T[]> {
+  const database = await getDatabase();
+  const transaction = database.transaction(storeName, 'readonly');
+  const store = transaction.objectStore(storeName);
+  const result = await promisifyRequest(store.getAll() as IDBRequest<T[]>);
+  await waitForTransaction(transaction);
+  return result;
 }
 
-function mapCategory(row: CategoryRow): Category {
-  return {
-    id: row.id,
-    name: row.name,
-  };
+async function getById<T>(storeName: string, id: string): Promise<T | undefined> {
+  const database = await getDatabase();
+  const transaction = database.transaction(storeName, 'readonly');
+  const store = transaction.objectStore(storeName);
+  const result = await promisifyRequest(store.get(id) as IDBRequest<T | undefined>);
+  await waitForTransaction(transaction);
+  return result;
 }
 
-function mapSettings(row: SettingsRow): Settings {
-  return {
-    id: row.id,
-    userName: row.user_name,
-    userPlan: row.user_plan,
-    customPhotoUrl: row.custom_photo_url,
-    monthlyGoal: Number(row.monthly_goal),
-  };
+async function putValue(storeName: string, value: unknown): Promise<void> {
+  const database = await getDatabase();
+  const transaction = database.transaction(storeName, 'readwrite');
+  transaction.objectStore(storeName).put(value);
+  await waitForTransaction(transaction);
 }
 
-async function queryRows<T>(statement: string, values: unknown[] = []): Promise<T[]> {
-  const result = await assertDatabase().query(statement, values);
-  return (result.values ?? []) as T[];
+async function deleteValue(storeName: string, id: string): Promise<void> {
+  const database = await getDatabase();
+  const transaction = database.transaction(storeName, 'readwrite');
+  transaction.objectStore(storeName).delete(id);
+  await waitForTransaction(transaction);
 }
 
-async function run(statement: string, values: unknown[] = []): Promise<void> {
-  await assertDatabase().run(statement, values);
-  if (Capacitor.getPlatform() === 'web') {
-    await getConnection().saveToStore(DB_NAME);
-  }
-}
-
-async function ensureSettingsSingleton(): Promise<void> {
-  const rows = await queryRows<SettingsRow>('SELECT * FROM settings WHERE id = ?', ['default']);
-  if (rows.length === 0) {
-    await run(
-      'INSERT INTO settings (id, user_name, user_plan, custom_photo_url, monthly_goal) VALUES (?, ?, ?, ?, ?)',
-      [
-        DEFAULT_SETTINGS.id,
-        DEFAULT_SETTINGS.userName,
-        DEFAULT_SETTINGS.userPlan,
-        DEFAULT_SETTINGS.customPhotoUrl,
-        DEFAULT_SETTINGS.monthlyGoal,
-      ],
-    );
-  }
+async function clearStore(storeName: string): Promise<void> {
+  const database = await getDatabase();
+  const transaction = database.transaction(storeName, 'readwrite');
+  transaction.objectStore(storeName).clear();
+  await waitForTransaction(transaction);
 }
 
 export async function initDatabase(): Promise<void> {
-  if (Capacitor.getPlatform() === 'web') {
-    await CapacitorSQLite.initWebStore();
-  }
-
-  database = await openDatabase(DB_NAME, false, 'no encryption', DB_VERSION);
-  await database.execute(schema);
+  await getDatabase();
 }
 
 export async function seedDefaults(): Promise<void> {
-  const categoryCount = await queryRows<{ total: number }>('SELECT COUNT(*) as total FROM categories');
-  if ((categoryCount[0]?.total ?? 0) === 0) {
-    for (const categoryName of DEFAULT_CATEGORIES) {
-      await run('INSERT INTO categories (id, name) VALUES (?, ?)', [uuidv4(), categoryName]);
+  const categories = await getAll<Category>(CATEGORIES_STORE);
+  if (categories.length === 0) {
+    for (const name of DEFAULT_CATEGORIES) {
+      await putValue(CATEGORIES_STORE, { id: uuidv4(), name } satisfies Category);
     }
   }
 
-  await ensureSettingsSingleton();
+  const settings = await getById<Settings>(SETTINGS_STORE, DEFAULT_SETTINGS.id);
+  if (!settings) {
+    await putValue(SETTINGS_STORE, DEFAULT_SETTINGS);
+  }
 }
 
 export async function getBills(): Promise<Bill[]> {
-  const rows = await queryRows<BillRow>('SELECT * FROM bills ORDER BY due_date ASC');
-  return rows.map(mapBill);
+  const bills = await getAll<Bill>(BILLS_STORE);
+  return bills.sort((left, right) => left.dueDate.localeCompare(right.dueDate));
 }
 
 export async function getBill(id: string): Promise<Bill | undefined> {
-  const rows = await queryRows<BillRow>('SELECT * FROM bills WHERE id = ?', [id]);
-  return rows[0] ? mapBill(rows[0]) : undefined;
+  return getById<Bill>(BILLS_STORE, id);
 }
 
 export async function createBill(data: InsertBill): Promise<Bill> {
@@ -238,23 +184,7 @@ export async function createBill(data: InsertBill): Promise<Bill> {
     paidDate: data.paidDate ?? null,
   };
 
-  await run(
-    `INSERT INTO bills (id, description, amount, due_date, category, status, notes, image_url, paid_date, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    [
-      bill.id,
-      bill.description,
-      bill.amount,
-      bill.dueDate,
-      bill.category,
-      bill.status,
-      bill.notes,
-      bill.imageUrl,
-      bill.paidDate,
-      bill.createdAt,
-    ],
-  );
-
+  await putValue(BILLS_STORE, bill);
   return bill;
 }
 
@@ -264,73 +194,58 @@ export async function updateBill(id: string, data: Partial<InsertBill>): Promise
     throw new Error('Conta não encontrada.');
   }
 
-  const fields: string[] = [];
-  const values: unknown[] = [];
+  const updated: Bill = {
+    ...current,
+    ...(data.description !== undefined ? { description: data.description } : {}),
+    ...(data.amount !== undefined ? { amount: data.amount } : {}),
+    ...(data.dueDate !== undefined ? { dueDate: data.dueDate } : {}),
+    ...(data.category !== undefined ? { category: data.category } : {}),
+    ...(data.status !== undefined ? { status: data.status } : {}),
+    ...(data.notes !== undefined ? { notes: data.notes } : {}),
+    ...(data.imageUrl !== undefined ? { imageUrl: data.imageUrl } : {}),
+    ...(data.paidDate !== undefined ? { paidDate: data.paidDate } : {}),
+  };
 
-  if (data.description !== undefined) {
-    fields.push('description = ?');
-    values.push(data.description);
-  }
-  if (data.amount !== undefined) {
-    fields.push('amount = ?');
-    values.push(data.amount);
-  }
-  if (data.dueDate !== undefined) {
-    fields.push('due_date = ?');
-    values.push(data.dueDate);
-  }
-  if (data.category !== undefined) {
-    fields.push('category = ?');
-    values.push(data.category);
-  }
-  if (data.status !== undefined) {
-    fields.push('status = ?');
-    values.push(data.status);
-  }
-  if (data.notes !== undefined) {
-    fields.push('notes = ?');
-    values.push(data.notes);
-  }
-  if (data.imageUrl !== undefined) {
-    fields.push('image_url = ?');
-    values.push(data.imageUrl);
-  }
-  if (data.paidDate !== undefined) {
-    fields.push('paid_date = ?');
-    values.push(data.paidDate);
-  }
-
-  if (fields.length > 0) {
-    values.push(id);
-    await run(`UPDATE bills SET ${fields.join(', ')} WHERE id = ?`, values);
-  }
-
-  return (await getBill(id)) ?? current;
+  await putValue(BILLS_STORE, updated);
+  return updated;
 }
 
 export async function deleteBill(id: string): Promise<void> {
-  await run('DELETE FROM bills WHERE id = ?', [id]);
+  await deleteValue(BILLS_STORE, id);
 }
 
 export async function markBillPaid(id: string): Promise<Bill> {
-  const paidAt = new Date().toISOString();
-  await run('UPDATE bills SET status = ?, paid_date = ? WHERE id = ?', ['paid', paidAt, id]);
-  const updated = await getBill(id);
-  if (!updated) {
+  const current = await getBill(id);
+  if (!current) {
     throw new Error('Conta não encontrada.');
   }
+
+  const updated: Bill = {
+    ...current,
+    status: 'paid',
+    paidDate: new Date().toISOString(),
+  };
+
+  await putValue(BILLS_STORE, updated);
   return updated;
 }
 
 export async function markMultipleBillsPaid(ids: string[]): Promise<void> {
   for (const id of ids) {
-    await markBillPaid(id);
+    const current = await getBill(id);
+    if (current) {
+      await putValue(BILLS_STORE, {
+        ...current,
+        status: 'paid',
+        paidDate: new Date().toISOString(),
+      } satisfies Bill);
+    }
   }
 }
 
 export async function getCategories(): Promise<Category[]> {
-  const rows = await queryRows<CategoryRow>('SELECT * FROM categories ORDER BY name ASC');
-  return rows.map(mapCategory);
+  const categories = await getAll<Category>(CATEGORIES_STORE);
+  return categories.sort((left, right) => left.name.localeCompare(right.name));
 }
 
 export async function createCategory(name: string): Promise<Category> {
@@ -339,8 +254,9 @@ export async function createCategory(name: string): Promise<Category> {
     throw new Error('Informe um nome de categoria.');
   }
 
-  const existing = await queryRows<CategoryRow>('SELECT * FROM categories WHERE lower(name) = lower(?)', [normalized]);
-  if (existing.length > 0) {
+  const categories = await getAll<Category>(CATEGORIES_STORE);
+  const alreadyExists = categories.some((category) => category.name.toLowerCase() === normalized.toLowerCase());
+  if (alreadyExists) {
     throw new Error('Categoria já existe.');
   }
 
@@ -348,57 +264,44 @@ export async function createCategory(name: string): Promise<Category> {
     id: uuidv4(),
     name: normalized,
   };
-  await run('INSERT INTO categories (id, name) VALUES (?, ?)', [category.id, category.name]);
+
+  await putValue(CATEGORIES_STORE, category);
   return category;
 }
 
 export async function deleteCategory(id: string): Promise<void> {
-  await run('DELETE FROM categories WHERE id = ?', [id]);
+  await deleteValue(CATEGORIES_STORE, id);
 }
 
 export async function getSettings(): Promise<Settings> {
-  await ensureSettingsSingleton();
-  const rows = await queryRows<SettingsRow>('SELECT * FROM settings WHERE id = ?', ['default']);
-  if (!rows[0]) {
+  await seedDefaults();
+  const settings = await getById<Settings>(SETTINGS_STORE, DEFAULT_SETTINGS.id);
+  if (!settings) {
     throw new Error('Configurações não encontradas.');
   }
-  return mapSettings(rows[0]);
+
+  return settings;
 }
 
 export async function updateSettings(data: Partial<Settings>): Promise<Settings> {
-  await ensureSettingsSingleton();
+  const current = await getSettings();
+  const updated: Settings = {
+    ...current,
+    ...(data.userName !== undefined ? { userName: data.userName } : {}),
+    ...(data.userPlan !== undefined ? { userPlan: data.userPlan } : {}),
+    ...(data.customPhotoUrl !== undefined ? { customPhotoUrl: data.customPhotoUrl } : {}),
+    ...(data.monthlyGoal !== undefined ? { monthlyGoal: data.monthlyGoal } : {}),
+  };
 
-  const fields: string[] = [];
-  const values: unknown[] = [];
-
-  if (data.userName !== undefined) {
-    fields.push('user_name = ?');
-    values.push(data.userName);
-  }
-  if (data.userPlan !== undefined) {
-    fields.push('user_plan = ?');
-    values.push(data.userPlan);
-  }
-  if (data.customPhotoUrl !== undefined) {
-    fields.push('custom_photo_url = ?');
-    values.push(data.customPhotoUrl);
-  }
-  if (data.monthlyGoal !== undefined) {
-    fields.push('monthly_goal = ?');
-    values.push(data.monthlyGoal);
-  }
-
-  if (fields.length > 0) {
-    values.push('default');
-    await run(`UPDATE settings SET ${fields.join(', ')} WHERE id = ?`, values);
-  }
-
-  return getSettings();
+  await putValue(SETTINGS_STORE, updated);
+  return updated;
 }
 
 export async function resetAll(): Promise<void> {
-  await run('DELETE FROM bills');
-  await run('DELETE FROM categories');
-  await run('DELETE FROM settings');
+  await Promise.all([
+    clearStore(BILLS_STORE),
+    clearStore(CATEGORIES_STORE),
+    clearStore(SETTINGS_STORE),
+  ]);
   await seedDefaults();
 }

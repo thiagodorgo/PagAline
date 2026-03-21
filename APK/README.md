@@ -2,14 +2,14 @@
 
 ## Visão geral
 
-O `APK/` contém a versão Android offline do PagAline, construída com React 19 + Vite 7 + Capacitor 6. Nesta arquitetura, toda a persistência e processamento são locais no dispositivo: o PostgreSQL/AWS do projeto web foi substituído por SQLite via `@capacitor-community/sqlite`, e o OCR em nuvem foi substituído por captura local com `@capacitor/camera` e reconhecimento offline com `@jcesarmobile/capacitor-ocr`.
+O `APK/` contém a versão Android offline do PagAline, construída com React 19 + Vite 7 + Capacitor 6. Nesta arquitetura, toda a persistência e processamento são locais no dispositivo: o PostgreSQL/AWS do projeto web foi substituído por um banco local em IndexedDB, e o OCR em nuvem foi substituído por captura local com `@capacitor/camera` e uma ponte opcional para OCR nativo.
 
 ## Objetivos atendidos
 
 - Replicar as 5 telas principais do PagAline web.
 - Executar 100% offline.
 - Eliminar backend Express, REST e integrações AWS.
-- Persistir dados, categorias e configurações em SQLite local.
+- Persistir dados, categorias e configurações em banco local no dispositivo.
 - Fazer OCR local e preencher sugestões sem upload.
 - Preparar o app para empacotamento Android com Capacitor.
 
@@ -44,6 +44,8 @@ npm run build
 ```
 
 O build gera a pasta `dist/`, usada pelo Capacitor como `webDir`.
+
+> Se aparecer erro de resolução de `@capacitor/*`, confirme que você executou `npm install` dentro de `APK/` antes do build.
 
 ## Sincronizar com Android
 
@@ -104,10 +106,10 @@ Configurações centrais:
   - `appName`: `PagAline`
   - `webDir`: `dist`
 - `src/lib/db.ts`
-  - Nome do banco: `pagaline.db`
-  - Tabelas locais: `bills`, `categories`, `settings`
+  - Banco local: `pagaline.db`
+  - Stores locais: `bills`, `categories`, `settings`
 - `src/lib/ocr.ts`
-  - OCR local com plugin nativo OCR + ML Kit on-device
+  - OCR local via ponte opcional para o plugin nativo `ImageToText`
 
 ## Estrutura de pastas
 
@@ -162,7 +164,7 @@ APK/
 | Scan | Implementado | OCR local por câmera/galeria, formulário manual |
 | Reports | Implementado | Meta mensal, pizza por categoria, barra pago x pendente |
 | Settings | Implementado | Nome, foto, meta, dark mode, categorias, reset |
-| SQLite | Implementado | Fonte de verdade local |
+| Banco local IndexedDB | Implementado | Fonte de verdade local |
 | OCR local | Implementado | Sem upload ou serviços externos |
 | Haptics | Implementado | Feedback ao abrir drawers de opções |
 | Push | UI mantida | Sem implementação, conforme requisito |
@@ -173,9 +175,9 @@ APK/
 | Web / AWS | APK offline |
 | --- | --- |
 | Express REST API | Chamadas diretas do Zustand para `db.ts` |
-| PostgreSQL + Drizzle | SQLite local via Capacitor |
+| PostgreSQL + Drizzle | Banco local IndexedDB no app |
 | S3 presigned upload | Imagem local em base64 |
-| AWS Textract | ML Kit Text Recognition offline |
+| AWS Textract | Ponte opcional para OCR nativo local |
 | AWS App Runner | WebView Android empacotada com Capacitor |
 | Secrets Manager | Não aplicável |
 
@@ -194,7 +196,7 @@ APK/
 - Não há `fetch`, rotas REST ou autenticação.
 - Não há dependência de internet.
 - O OCR é executado localmente no aparelho.
-- Os dados ficam armazenados no SQLite do dispositivo.
+- Os dados ficam armazenados no banco local do dispositivo.
 
 ## Permissões Android importantes
 
@@ -208,6 +210,9 @@ O `AndroidManifest.xml` inclui:
 
 ## Troubleshooting
 
+### Build Android pede `google-services.json`
+O plugin `@capacitor-community/image-to-text` pode exigir configuração Android do Google/Firebase para o OCR nativo. Se isso acontecer no seu ambiente, adicione o `google-services.json` em `android/app/` antes de compilar a versão Android.
+
 ### `npx cap sync android` não encontra a pasta `dist`
 Execute antes:
 
@@ -215,14 +220,17 @@ Execute antes:
 npm run build
 ```
 
-### Erro de dependência do SQLite no web preview
-No navegador, o plugin SQLite depende do ambiente do Capacitor/Web implementation. O alvo principal desta pasta é Android nativo.
+### Banco local no web preview
+No navegador, os dados continuam persistidos em IndexedDB para facilitar o preview e os testes de interface.
 
 ### A câmera não abre no emulador
 Verifique se o emulador possui câmera configurada ou teste em um dispositivo físico.
 
 ### OCR não reconhece texto corretamente
 Use imagens nítidas, bem iluminadas e com o documento centralizado.
+
+### OCR indisponível neste build
+O app web/preview continua funcionando, mas a leitura automática depende de um plugin nativo `ImageToText` já exposto no runtime do Capacitor. Se o seu ambiente bloquear a dependência npm do plugin, você ainda pode gerar o build e usar preenchimento manual até configurar a integração nativa separadamente.
 
 ### APK release não gera
 Confira:

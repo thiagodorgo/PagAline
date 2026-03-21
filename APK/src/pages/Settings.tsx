@@ -203,7 +203,7 @@ export default function Settings() {
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>Perfil</DrawerTitle>
-            <DrawerDescription>Os dados ficam armazenados no SQLite local do dispositivo.</DrawerDescription>
+            <DrawerDescription>Os dados ficam armazenados no banco local do dispositivo.</DrawerDescription>
           </DrawerHeader>
           <div className="space-y-4 p-4">
             <div className="flex justify-center">

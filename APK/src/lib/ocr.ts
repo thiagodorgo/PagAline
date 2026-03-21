@@ -1,6 +1,6 @@
 import { Camera, CameraResultType, CameraSource, type Photo } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
-import { ImageToText } from '@capacitor-community/image-to-text';
+import { Ocr } from '@jcesarmobile/capacitor-ocr';
 import { parse } from 'date-fns';
 
 export interface OcrSuggestion {
@@ -78,8 +78,8 @@ export async function scanFromGallery(): Promise<OcrSuggestion> {
 }
 
 async function extractTextFromImage(imagePath: string): Promise<string> {
-  const response = await ImageToText.detectText({ filename: imagePath });
-  return response.textDetections.map((item) => item.text).join('\n').trim();
+  const response = await Ocr.process({ image: imagePath });
+  return response.results.map((item) => item.text).join('\n').trim();
 }
 
 function parseAmount(text: string): number | undefined {

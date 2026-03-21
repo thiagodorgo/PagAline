@@ -76,19 +76,11 @@ declare module '@capacitor-community/sqlite' {
   };
 }
 
-declare module '@capacitor-community/image-to-text' {
-  export interface TextDetection {
+declare module '@jcesarmobile/capacitor-ocr' {
+  export interface RecognitionResult {
     text: string;
+    confidence: number;
   }
-
-  export interface TextDetections {
-    textDetections: TextDetection[];
-  }
-
-  export const ImageToText: {
-    detectText(options: { filename: string }): Promise<TextDetections>;
-  };
-}
 
   export interface RecognitionResults {
     results: RecognitionResult[];
