@@ -1,0 +1,147 @@
+import { Camera, CameraResultType, CameraSource, type Photo } from '@capacitor/camera';
+import { TextRecognition } from '@capacitor-mlkit/text-recognition';
+import { parse } from 'date-fns';
+
+export interface OcrSuggestion {
+  description?: string;
+  amount?: number;
+  dueDate?: string;
+  category?: string;
+  notes?: string;
+  imageUrl?: string;
+}
+
+type RecognitionPlugin = {
+  recognizeText(options: { base64Image: string }): Promise<{
+    text?: string;
+    blocks?: Array<{ text?: string; lines?: Array<{ text?: string }> }>;
+  }>;
+};
+
+const textRecognition = TextRecognition as unknown as RecognitionPlugin;
+
+async function getPhoto(source: CameraSource): Promise<Photo> {
+  return Camera.getPhoto({
+    source,
+    resultType: CameraResultType.Base64,
+    quality: 90,
+    correctOrientation: true,
+  });
+}
+
+function toDataUrl(base64: string, format?: string): string {
+  const mime = format ? `image/${format.replace('jpg', 'jpeg')}` : 'image/jpeg';
+  return `data:${mime};base64,${base64}`;
+}
+
+async function buildSuggestionFromPhoto(photo: Photo): Promise<OcrSuggestion> {
+  const base64 = photo.base64String;
+  if (!base64) {
+    throw new Error('Não foi possível obter a imagem para OCR.');
+  }
+
+  const rawText = await extractTextFromImage(base64);
+  const amount = parseAmount(rawText);
+  const dueDate = parseDate(rawText);
+  const description = parseDescription(rawText);
+  const category = inferCategory(rawText);
+
+  return {
+    description,
+    amount,
+    dueDate,
+    category,
+    notes: rawText || undefined,
+    imageUrl: toDataUrl(base64, photo.format),
+  };
+}
+
+export async function scanFromCamera(): Promise<OcrSuggestion> {
+  return buildSuggestionFromPhoto(await getPhoto(CameraSource.Camera));
+}
+
+export async function scanFromGallery(): Promise<OcrSuggestion> {
+  return buildSuggestionFromPhoto(await getPhoto(CameraSource.Photos));
+}
+
+async function extractTextFromImage(base64: string): Promise<string> {
+  const result = await textRecognition.recognizeText({ base64Image: base64 });
+  if (result.text?.trim()) {
+    return result.text.trim();
+  }
+  const fromBlocks = (result.blocks ?? [])
+    .flatMap((block) => block.lines?.map((line) => line.text ?? '') ?? [block.text ?? ''])
+    .filter(Boolean)
+    .join('\n')
+    .trim();
+  return fromBlocks;
+}
+
+function parseAmount(text: string): number | undefined {
+  const currencyPattern = /(?:R\$\s*)?([0-9]{1,3}(?:\.[0-9]{3})*,[0-9]{2}|[0-9]+,[0-9]{2}|[0-9]+\.[0-9]{2})/g;
+  const matches = [...text.matchAll(currencyPattern)]
+    .map((match) => match[1])
+    .map((value) => Number.parseFloat(value.replace(/\./g, '').replace(',', '.')))
+    .filter((value) => !Number.isNaN(value));
+
+  if (matches.length === 0) {
+    return undefined;
+  }
+
+  return matches.sort((a, b) => b - a)[0];
+}
+
+function parseDate(text: string): string | undefined {
+  const match = text.match(/\b(\d{2})[\/\-.](\d{2})[\/\-.](\d{4})\b/);
+  if (!match) {
+    return undefined;
+  }
+
+  const normalized = `${match[1]}/${match[2]}/${match[3]}`;
+  const parsed = parse(normalized, 'dd/MM/yyyy', new Date());
+  if (Number.isNaN(parsed.getTime())) {
+    return undefined;
+  }
+
+  return parsed.toISOString();
+}
+
+function inferCategory(text: string): string {
+  if (/(energia|eletric|luz|água|agua|gás|gas|condom|aluguel|internet|telefone|celular)/i.test(text)) {
+    return 'Casa';
+  }
+  if (/(uber|99 |taxi|combust|transporte|metrô|metro|ônibus|onibus|pedágio|pedagio)/i.test(text)) {
+    return 'Transporte';
+  }
+  if (/(escola|faculdade|curso|mensalidade|educa)/i.test(text)) {
+    return 'Educação';
+  }
+  if (/(farm|hospital|consulta|cl[ií]nica|sa[úu]de|plano)/i.test(text)) {
+    return 'Saúde';
+  }
+  if (/(iptu|ipva|imposto|darf|tributo|receita)/i.test(text)) {
+    return 'Impostos';
+  }
+  return 'Outros';
+}
+
+function parseDescription(text: string): string | undefined {
+  const preferredPatterns = [
+    /(?:benefici[aá]rio|favorecido|recebedor|vendor|supplier|receiver)[:\s]+(.+)/i,
+    /(?:empresa|estabelecimento|raz[aã]o social)[:\s]+(.+)/i,
+  ];
+
+  for (const pattern of preferredPatterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) {
+      return match[1].trim().slice(0, 80);
+    }
+  }
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length >= 4 && /[A-Za-zÀ-ÿ]/.test(line));
+
+  return lines[0]?.slice(0, 80);
+}

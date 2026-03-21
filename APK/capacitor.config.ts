@@ -1,0 +1,25 @@
+import type { CapacitorConfig } from '@capacitor/cli';
+
+const config: CapacitorConfig = {
+  appId: 'com.pagaline.app',
+  appName: 'PagAline',
+  webDir: 'dist',
+  plugins: {
+    SplashScreen: {
+      launchShowDuration: 2000,
+      autoHide: true,
+      backgroundColor: '#7c3aed',
+      splashFullScreen: true,
+      splashImmersive: true,
+    },
+    StatusBar: {
+      style: 'DARK',
+      backgroundColor: '#7c3aed',
+    },
+    CapacitorSQLite: {
+      iosDatabaseLocation: 'Library/CapacitorDatabase',
+    },
+  },
+};
+
+export default config;
