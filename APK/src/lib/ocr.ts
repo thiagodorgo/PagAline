@@ -1,6 +1,5 @@
 import { Camera, CameraResultType, CameraSource, type Photo } from '@capacitor/camera';
 import { Capacitor } from '@capacitor/core';
-import { Ocr } from '@jcesarmobile/capacitor-ocr';
 import { parse } from 'date-fns';
 
 export interface OcrSuggestion {
@@ -77,9 +76,37 @@ export async function scanFromGallery(): Promise<OcrSuggestion> {
   return buildSuggestionFromPhoto(await getPhoto(CameraSource.Photos));
 }
 
+type ImageToTextPlugin = {
+  detectText(options: { filename: string }): Promise<{
+    textDetections?: Array<{ text?: string }>;
+  }>;
+};
+
+function getImageToTextPlugin(): ImageToTextPlugin | null {
+  const capacitor = (globalThis as typeof globalThis & {
+    Capacitor?: {
+      Plugins?: Record<string, unknown>;
+    };
+  }).Capacitor;
+
+  const plugin = capacitor?.Plugins?.ImageToText;
+  if (!plugin || typeof plugin !== 'object' || !('detectText' in plugin)) {
+    return null;
+  }
+
+  return plugin as ImageToTextPlugin;
+}
+
 async function extractTextFromImage(imagePath: string): Promise<string> {
-  const response = await Ocr.process({ image: imagePath });
-  return response.results.map((item) => item.text).join('\n').trim();
+  const imageToText = getImageToTextPlugin();
+  if (!imageToText) {
+    throw new Error(
+      'OCR indisponível neste build. Instale/configure o plugin nativo ImageToText antes de usar a leitura automática.',
+    );
+  }
+
+  const response = await imageToText.detectText({ filename: imagePath });
+  return (response.textDetections ?? []).map((item) => item.text ?? '').join('\n').trim();
 }
 
 function parseAmount(text: string): number | undefined {

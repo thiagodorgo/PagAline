@@ -8,6 +8,10 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
+      '@capacitor/core': path.resolve(__dirname, './src/capacitor/core.ts'),
+      '@capacitor/camera': path.resolve(__dirname, './src/capacitor/camera.ts'),
+      '@capacitor/dialog': path.resolve(__dirname, './src/capacitor/dialog.ts'),
+      '@capacitor/haptics': path.resolve(__dirname, './src/capacitor/haptics.ts'),
     },
   },
   build: {

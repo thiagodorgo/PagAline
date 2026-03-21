@@ -414,7 +414,7 @@ export default function Home() {
         <DrawerContent>
           <DrawerHeader>
             <DrawerTitle>Editar conta</DrawerTitle>
-            <DrawerDescription>Atualize os dados diretamente no SQLite local.</DrawerDescription>
+            <DrawerDescription>Atualize os dados diretamente no banco local do app.</DrawerDescription>
           </DrawerHeader>
           <div className="space-y-4 p-4">
             <div className="space-y-2">
