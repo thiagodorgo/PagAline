@@ -1,9 +1,3 @@
-import { Capacitor } from '@capacitor/core';
-import {
-  CapacitorSQLite,
-  SQLiteConnection,
-  type SQLiteDBConnection,
-} from '@capacitor-community/sqlite';
 import { v4 as uuidv4 } from 'uuid';
 
 export interface Bill {

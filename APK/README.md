@@ -116,9 +116,17 @@ Configurações centrais:
 ```text
 APK/
 ├── android/
-│   └── app/src/main/
-│       ├── AndroidManifest.xml
-│       └── res/xml/config.xml
+│   ├── app/
+│   │   ├── build.gradle.kts
+│   │   └── src/main/
+│   │       ├── AndroidManifest.xml
+│   │       ├── java/com/pagaline/app/MainActivity.kt
+│   │       └── res/
+│   │           ├── values/
+│   │           └── xml/config.xml
+│   ├── build.gradle.kts
+│   ├── gradle.properties
+│   └── settings.gradle.kts
 ├── public/
 │   └── .gitkeep
 ├── src/
