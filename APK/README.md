@@ -53,7 +53,9 @@ O build gera a pasta `dist/`, usada pelo Capacitor como `webDir`.
 npx cap sync android
 ```
 
-O projeto Android referencia o runtime `@capacitor/android` e os plugins nativos diretamente de `APK/node_modules`, então rode `npm install` antes de abrir o projeto no Android Studio e execute `npx cap sync android` sempre que atualizar dependências do Capacitor.
+O projeto Android referencia o runtime `@capacitor/android` e os plugins nativos diretamente de `APK/node_modules`, com caminhos relativos oficiais do Capacitor (`../node_modules/...`) a partir de `APK/android/`. Por isso, rode `npm install` antes de abrir o projeto no Android Studio e execute `npx cap sync android` sempre que atualizar dependências do Capacitor.
+
+O `settings.gradle.kts` usa `RepositoriesMode.PREFER_PROJECT` para permanecer compatível com os builds Gradle dos próprios módulos do Capacitor, que também registram `google()` e `mavenCentral()`.
 
 ## Abrir no Android Studio
 
@@ -128,6 +130,7 @@ APK/
 │   │           ├── values/
 │   │           └── xml/config.xml
 │   ├── build.gradle.kts
+│   ├── capacitor-cordova-android-plugins/
 │   ├── capacitor.settings.gradle
 │   ├── gradle.properties
 │   └── settings.gradle.kts
@@ -257,6 +260,10 @@ Esse projeto usa referências locais do Gradle para `@capacitor/android` e plugi
 2. `npx cap sync android` executado depois da instalação
 3. A pasta `APK/node_modules/@capacitor/android/capacitor` existe
 4. O Android Studio abriu `APK/android/`, não a raiz do monorepo
+5. O arquivo `android/capacitor.settings.gradle` continua apontando para `../node_modules/...`, que é o layout padrão do Capacitor para um app enraizado em `APK/`
+
+### Build reclama de `repository 'Google' was added by build file '../node_modules/@capacitor/android/capacitor/build.gradle'`
+O projeto já está configurado para permitir repositórios definidos pelos módulos locais do Capacitor usando `RepositoriesMode.PREFER_PROJECT`. Se você ainda enxergar esse erro, reabra/sincronize o projeto Android depois de atualizar os arquivos com `git pull` ou confirme se o `settings.gradle.kts` não voltou para `FAIL_ON_PROJECT_REPOS`.
 
 ## O que não fazer
 
