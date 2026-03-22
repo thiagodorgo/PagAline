@@ -43,7 +43,10 @@ dependencies {
   implementation("androidx.appcompat:appcompat:1.7.0")
   implementation("androidx.core:core-ktx:1.13.1")
   implementation("androidx.core:core-splashscreen:1.0.1")
+  implementation("androidx.coordinatorlayout:coordinatorlayout:1.2.0")
   implementation("androidx.webkit:webkit:1.11.0")
   implementation("com.google.android.material:material:1.12.0")
-  implementation("com.capacitorjs:capacitor-android:6.1.2")
+  implementation(project(":capacitor-android"))
 }
+
+apply(from = "capacitor.build.gradle")
