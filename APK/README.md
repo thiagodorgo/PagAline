@@ -53,6 +53,8 @@ O build gera a pasta `dist/`, usada pelo Capacitor como `webDir`.
 npx cap sync android
 ```
 
+O projeto Android referencia o runtime `@capacitor/android` e os plugins nativos diretamente de `APK/node_modules`, então rode `npm install` antes de abrir o projeto no Android Studio e execute `npx cap sync android` sempre que atualizar dependências do Capacitor.
+
 ## Abrir no Android Studio
 
 ```bash
@@ -118,6 +120,7 @@ APK/
 ├── android/
 │   ├── app/
 │   │   ├── build.gradle.kts
+│   │   ├── capacitor.build.gradle
 │   │   └── src/main/
 │   │       ├── AndroidManifest.xml
 │   │       ├── java/com/pagaline/app/MainActivity.kt
@@ -125,6 +128,7 @@ APK/
 │   │           ├── values/
 │   │           └── xml/config.xml
 │   ├── build.gradle.kts
+│   ├── capacitor.settings.gradle
 │   ├── gradle.properties
 │   └── settings.gradle.kts
 ├── public/
@@ -245,6 +249,14 @@ Confira:
 - JDK 17 ativo
 - Android SDK 34 instalado
 - assinatura configurada no Gradle
+
+### Android Studio falha com `Could not find com.capacitorjs:capacitor-android`
+Esse projeto usa referências locais do Gradle para `@capacitor/android` e plugins nativos em `APK/node_modules`, em vez de baixar `com.capacitorjs:capacitor-android` do Maven. Se esse erro aparecer, confirme:
+
+1. `npm install` executado dentro de `APK/`
+2. `npx cap sync android` executado depois da instalação
+3. A pasta `APK/node_modules/@capacitor/android/capacitor` existe
+4. O Android Studio abriu `APK/android/`, não a raiz do monorepo
 
 ## O que não fazer
 
