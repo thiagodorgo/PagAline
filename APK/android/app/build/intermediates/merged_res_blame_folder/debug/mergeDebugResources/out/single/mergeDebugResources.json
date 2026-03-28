@@ -1,0 +1,10 @@
+[
+    {
+        "merged": "C:\\Users\\AMP\\.gradle\\daemon\\9.0-milestone-1\\com.pagaline.app-debug-33:\\xml_config.xml.flat",
+        "source": "C:\\Users\\AMP\\.gradle\\daemon\\9.0-milestone-1\\com.pagaline.app-main-35:\\xml\\config.xml"
+    },
+    {
+        "merged": "com.pagaline.app-debug-33:/xml_config.xml.flat",
+        "source": "com.pagaline.app-main-35:/xml/config.xml"
+    }
+]
